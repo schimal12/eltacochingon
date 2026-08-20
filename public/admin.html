@@ -403,12 +403,13 @@
             <tr>
               <th>Customer</th>
               <th>Stamps</th>
+              <th>Promo</th>
               <th>Joined</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="customerTable">
-            <tr><td colspan="4" class="empty-state">Loading…</td></tr>
+            <tr><td colspan="5" class="empty-state">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -427,6 +428,27 @@
           <div class="notify-form">
             <textarea id="notifyMsg" placeholder="Today is Taco Tuesday! 🌮 Get 2x stamps all day."></textarea>
             <button class="btn btn-primary" id="notifyBtn" onclick="sendNotification()">Send to All Devices</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Promotion settings -->
+      <div class="panel">
+        <div class="panel-header"><h2>Promotion</h2></div>
+        <div class="panel-body">
+          <p style="color:var(--muted);font-size:12px;margin-bottom:12px;">
+            Applies to new sign-ups only — existing cards keep the deal they signed up under.
+          </p>
+          <div class="notify-form">
+            <div class="form-group" style="margin-bottom:0;">
+              <label for="stampsRequiredInput">Stamps Required</label>
+              <input type="text" inputmode="numeric" id="stampsRequiredInput" placeholder="10">
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label for="rewardTextInput">Reward</label>
+              <input type="text" id="rewardTextInput" placeholder="a free taco">
+            </div>
+            <button class="btn btn-primary" id="settingsBtn" onclick="saveSettings()">Save Promotion</button>
           </div>
         </div>
       </div>
@@ -496,8 +518,55 @@
       renderTable(allCustomers);
       updateQRLink();
       startAutoRefresh();
+      if (!settingsLoaded) loadSettings();
     } catch (err) {
       toast('Failed to load customers: ' + err.message, 'error');
+    }
+  }
+
+  // ── Promotion settings ────────────────────────────────────────────────────────
+
+  let settingsLoaded = false;
+
+  async function loadSettings() {
+    try {
+      const resp = await apiFetch('/admin/settings');
+      if (!resp.ok) throw new Error('Server error');
+      const data = await resp.json();
+      document.getElementById('stampsRequiredInput').value = data.stampsRequired;
+      document.getElementById('rewardTextInput').value = data.rewardText;
+      settingsLoaded = true;
+    } catch (err) {
+      toast('Failed to load promotion settings: ' + err.message, 'error');
+    }
+  }
+
+  async function saveSettings() {
+    const stampsRequired = parseInt(document.getElementById('stampsRequiredInput').value, 10);
+    const rewardText = document.getElementById('rewardTextInput').value.trim();
+
+    if (!Number.isInteger(stampsRequired) || stampsRequired < 1) {
+      return toast('Enter a valid stamp count', 'error');
+    }
+    if (!rewardText) return toast('Enter a reward description', 'error');
+
+    const btn = document.getElementById('settingsBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+
+    try {
+      const resp = await apiFetch('/admin/settings', {
+        method: 'POST',
+        body: JSON.stringify({ stampsRequired, rewardText }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Failed');
+      toast('Promotion saved — applies to new sign-ups', 'success');
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Promotion';
     }
   }
 
@@ -513,7 +582,7 @@
   function updateStats() {
     const total   = allCustomers.length;
     const stamps  = allCustomers.reduce((s, c) => s + c.stamps, 0);
-    const rewards = allCustomers.reduce((s, c) => s + Math.floor(c.stamps / 10), 0);
+    const rewards = allCustomers.reduce((s, c) => s + Math.floor(c.stamps / (c.stampsRequired || 10)), 0);
 
     document.getElementById('statTotal').textContent   = total;
     document.getElementById('statStamps').textContent  = stamps;
@@ -527,13 +596,16 @@
   function renderTable(customers) {
     const tbody = document.getElementById('customerTable');
     if (customers.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No customers yet. Share the registration link!</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No customers yet. Share the registration link!</td></tr>';
       return;
     }
 
     tbody.innerHTML = customers.map((c) => {
-      const dots = Array.from({ length: 10 }, (_, i) => {
-        const cls = i < (c.stamps % 10) ? 'stamp-dot filled' : (i === 9 && c.stamps % 10 === 0 && c.stamps > 0 ? 'stamp-dot reward' : 'stamp-dot');
+      const required = c.stampsRequired || 10;
+      const cycle    = c.stamps % required;
+      const ready    = cycle === 0 && c.stamps > 0;
+      const dots = Array.from({ length: required }, (_, i) => {
+        const cls = i < cycle ? 'stamp-dot filled' : (i === required - 1 && ready ? 'stamp-dot reward' : 'stamp-dot');
         return `<span class="${cls}" title="Stamp ${i+1}"></span>`;
       }).join('');
 
@@ -547,9 +619,10 @@
         <td data-label="Stamps">
           <div class="stamp-bar">
             ${dots}
-            <span class="stamp-count">${c.stamps}/10</span>
+            <span class="stamp-count">${c.stamps}/${required}</span>
           </div>
         </td>
+        <td data-label="Promo" style="color:var(--muted);font-size:12px;">${required} → ${escHtml(c.rewardText || 'a free taco')}</td>
         <td data-label="Joined" style="color:var(--muted)">${date}</td>
         <td>
           <div class="row-actions">

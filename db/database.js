@@ -15,15 +15,17 @@ async function initDatabase() {
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS customers (
-      id            TEXT PRIMARY KEY,
-      name          TEXT NOT NULL,
-      email         TEXT UNIQUE NOT NULL,
-      serial_number TEXT UNIQUE NOT NULL,
-      auth_token    TEXT NOT NULL,
-      stamps        INTEGER NOT NULL DEFAULT 0,
-      lang          TEXT NOT NULL DEFAULT 'en',
-      created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      id              TEXT PRIMARY KEY,
+      name            TEXT NOT NULL,
+      email           TEXT UNIQUE NOT NULL,
+      serial_number   TEXT UNIQUE NOT NULL,
+      auth_token      TEXT NOT NULL,
+      stamps          INTEGER NOT NULL DEFAULT 0,
+      lang            TEXT NOT NULL DEFAULT 'en',
+      stamps_required INTEGER NOT NULL DEFAULT 10,
+      reward_text     TEXT NOT NULL DEFAULT 'a free taco',
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS devices (
@@ -39,6 +41,9 @@ async function initDatabase() {
       key   TEXT PRIMARY KEY,
       value TEXT
     );
+
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS stamps_required INTEGER NOT NULL DEFAULT 10;
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS reward_text TEXT NOT NULL DEFAULT 'a free taco';
   `);
 
   return pool;
@@ -56,11 +61,11 @@ function getPool() {
 
 // ── Customer queries ──────────────────────────────────────────────────────────
 
-async function createCustomer({ id, name, email, serialNumber, authToken, lang }) {
+async function createCustomer({ id, name, email, serialNumber, authToken, lang, stampsRequired, rewardText }) {
   await getPool().query(
-    `INSERT INTO customers (id, name, email, serial_number, auth_token, lang)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [id, name, email, serialNumber, authToken, lang === 'es' ? 'es' : 'en'],
+    `INSERT INTO customers (id, name, email, serial_number, auth_token, lang, stamps_required, reward_text)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [id, name, email, serialNumber, authToken, lang === 'es' ? 'es' : 'en', stampsRequired, rewardText],
   );
 }
 
@@ -131,6 +136,22 @@ async function setSetting(key, value) {
      ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
     [key, value],
   );
+}
+
+/**
+ * Current owner-configured promotion (stamps needed + reward description).
+ * New customers snapshot this at registration time; existing customers keep
+ * whatever was active when they signed up.
+ */
+async function getPromotionDefaults() {
+  const [stampsRequired, rewardText] = await Promise.all([
+    getSetting('default_stamps_required'),
+    getSetting('default_reward_text'),
+  ]);
+  return {
+    stampsRequired: stampsRequired ? parseInt(stampsRequired, 10) : 10,
+    rewardText: rewardText || 'a free taco',
+  };
 }
 
 /**
@@ -247,6 +268,7 @@ module.exports = {
   // settings
   getSetting,
   setSetting,
+  getPromotionDefaults,
   touchCustomers,
   // customers
   createCustomer,

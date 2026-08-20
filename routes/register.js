@@ -8,6 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 const {
   createCustomer,
   getCustomerByEmail,
+  getPromotionDefaults,
 } = require('../db/database');
 const { generatePass } = require('../passes/passGenerator');
 
@@ -128,8 +129,9 @@ router.post('/register', async (req, res) => {
       const id           = uuidv4();
       const serialNumber = uuidv4();
       const authToken    = uuidv4().replace(/-/g, ''); // 32-char hex token
+      const { stampsRequired, rewardText } = await getPromotionDefaults();
 
-      await createCustomer({ id, name, email, serialNumber, authToken, lang });
+      await createCustomer({ id, name, email, serialNumber, authToken, lang, stampsRequired, rewardText });
       customer = await getCustomerByEmail(email);
     }
 

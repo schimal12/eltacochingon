@@ -15,6 +15,7 @@ const {
   getDeviceCount,
   getAllDevicesWithCustomer,
   setSetting,
+  getPromotionDefaults,
   touchCustomers,
 } = require('../db/database');
 const { sendPassUpdatePush } = require('../passes/apnSender');
@@ -55,17 +56,57 @@ router.get('/admin/customers', adminAuth, async (_req, res) => {
   try {
     const rawCustomers = await getAllCustomers();
     const customers = rawCustomers.map((c) => ({
-      id:           c.id,
-      name:         c.name,
-      email:        c.email,
-      stamps:       c.stamps,
-      serialNumber: c.serial_number,
-      createdAt:    c.created_at,
-      updatedAt:    c.updated_at,
+      id:             c.id,
+      name:           c.name,
+      email:          c.email,
+      stamps:         c.stamps,
+      stampsRequired: c.stamps_required,
+      rewardText:     c.reward_text,
+      serialNumber:   c.serial_number,
+      createdAt:      c.created_at,
+      updatedAt:      c.updated_at,
     }));
     return res.json({ customers, deviceCount: await getDeviceCount() });
   } catch (err) {
     console.error('[ADMIN] Error listing customers:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /admin/settings ─────────────────────────────────────────────────────────
+// Current promotion defaults. New signups snapshot these; existing customers
+// keep whatever was active when they registered.
+
+router.get('/admin/settings', adminAuth, async (_req, res) => {
+  try {
+    return res.json(await getPromotionDefaults());
+  } catch (err) {
+    console.error('[ADMIN] Error reading settings:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /admin/settings ────────────────────────────────────────────────────────
+// Body: { "stampsRequired": 10, "rewardText": "a free taco" }
+
+router.post('/admin/settings', adminAuth, async (req, res) => {
+  try {
+    const stampsRequired = parseInt(req.body.stampsRequired, 10);
+    const rewardText     = (req.body.rewardText || '').trim();
+
+    if (!Number.isInteger(stampsRequired) || stampsRequired < 1) {
+      return res.status(400).json({ error: 'stampsRequired must be a positive whole number.' });
+    }
+    if (!rewardText) {
+      return res.status(400).json({ error: 'rewardText is required.' });
+    }
+
+    await setSetting('default_stamps_required', String(stampsRequired));
+    await setSetting('default_reward_text', rewardText);
+
+    return res.json({ success: true, stampsRequired, rewardText });
+  } catch (err) {
+    console.error('[ADMIN] Error saving settings:', err);
     return res.status(500).json({ error: err.message });
   }
 });

@@ -31,8 +31,8 @@ const TRANSLATIONS = {
     customerLabel:     'Customer',
     stampsLabel:       'Stamps',
     rewardLabel:       'Next Reward',
-    rewardReady:       'Collect your free taco!',
-    rewardRemaining:   (n) => `${n} more stamp${n === 1 ? '' : 's'} for a free taco`,
+    rewardReady:       (reward) => `You won ${reward}!`,
+    rewardRemaining:   (n, reward) => `${n} more stamp${n === 1 ? '' : 's'} for ${reward}`,
     termsLabel:        'Terms & Conditions',
     termsValue:        'One stamp per visit. Reward valid for 30 days after earning. Not transferable. Management reserves the right to modify or discontinue this program at any time.',
     websiteLabel:      'Website',
@@ -47,8 +47,8 @@ const TRANSLATIONS = {
     customerLabel:     'Cliente',
     stampsLabel:       'Sellos',
     rewardLabel:       'Próxima Recompensa',
-    rewardReady:       '¡Reclama tu taco gratis!',
-    rewardRemaining:   (n) => `${n} sello${n === 1 ? '' : 's'} más para un taco gratis`,
+    rewardReady:       (reward) => `¡Ganaste ${reward}!`,
+    rewardRemaining:   (n, reward) => `${n} sello${n === 1 ? '' : 's'} más para ${reward}`,
     termsLabel:        'Términos y Condiciones',
     termsValue:        'Un sello por visita. La recompensa es válida por 30 días después de obtenerla. No transferible. La administración se reserva el derecho de modificar o descontinuar este programa en cualquier momento.',
     websiteLabel:      'Sitio Web',
@@ -65,20 +65,29 @@ function translationsFor(lang) {
 }
 
 /**
- * Compute a human-friendly "next reward" string from the current stamp count.
+ * True once a customer has completed a full stamp cycle and hasn't started
+ * the next one yet (e.g. exactly 10, 20, 30... stamps for a 10-stamp card).
  */
-function nextRewardText(stamps, t) {
-  const remaining = Math.max(0, 10 - (stamps % 10));
-  return remaining === 0 ? t.rewardReady : t.rewardRemaining(remaining);
+function isRewardReady(stamps, stampsRequired) {
+  return stamps > 0 && stamps % stampsRequired === 0;
 }
 
 /**
- * Render the current 10-stamp cycle as filled/empty taco emoji.
+ * Compute a human-friendly "next reward" string from the current stamp count.
  */
-function stampVisual(stamps) {
-  const cycle  = stamps % 10;
-  const filled = cycle === 0 && stamps > 0 ? 10 : cycle;
-  return '🌮'.repeat(filled) + '◯'.repeat(10 - filled);
+function nextRewardText(stamps, stampsRequired, rewardText, t) {
+  if (isRewardReady(stamps, stampsRequired)) return t.rewardReady(rewardText);
+  const remaining = stampsRequired - (stamps % stampsRequired);
+  return t.rewardRemaining(remaining, rewardText);
+}
+
+/**
+ * Render the current stamp cycle as filled/empty taco emoji.
+ */
+function stampVisual(stamps, stampsRequired) {
+  const cycle  = stamps % stampsRequired;
+  const filled = cycle === 0 && stamps > 0 ? stampsRequired : cycle;
+  return '🌮'.repeat(filled) + '◯'.repeat(stampsRequired - filled);
 }
 
 /**
@@ -123,10 +132,10 @@ async function generatePass(customer) {
   // The getters return live references to the field arrays from pass.json.
   // Mutating the objects in-place is the v3 way of setting field values.
   //
-  // Note: storeCard has no primaryFields on purpose — that slot renders as
-  // large overlay text directly on top of the strip image, which collided
-  // with the wordmark artwork. Name and stamps live in secondaryFields
-  // instead, which render normally in the field grid below the strip.
+  // Note: primaryFields renders as large overlay text directly on top of the
+  // strip image, which is why customer name/stamps live in secondaryFields
+  // instead (see git history) -- primaryFields is only used below, and only
+  // for the reward-ready celebration banner.
 
   // secondaryFields: customer name + stamp count (taco emoji)
   const nameField = pass.secondaryFields.find((f) => f.key === 'name');
@@ -135,16 +144,29 @@ async function generatePass(customer) {
     nameField.value = customer.name;
   }
 
+  const stampsRequired = customer.stamps_required;
+  const rewardText     = customer.reward_text;
+  const ready           = isRewardReady(customer.stamps, stampsRequired);
+
   const stampsField = pass.secondaryFields.find((f) => f.key === 'stamps');
   if (stampsField) {
     stampsField.label = t.stampsLabel;
-    stampsField.value = stampVisual(customer.stamps);
+    stampsField.value = stampVisual(customer.stamps, stampsRequired);
   }
 
   // auxiliaryFields[0] → next reward message
   if (pass.auxiliaryFields.length > 0) {
     pass.auxiliaryFields[0].label = t.rewardLabel;
-    pass.auxiliaryFields[0].value = nextRewardText(customer.stamps, t);
+    pass.auxiliaryFields[0].value = nextRewardText(customer.stamps, stampsRequired, rewardText, t);
+  }
+
+  // primaryFields render as large overlay text on top of the strip image
+  // (see the git history on why storeCard normally avoids that slot) --
+  // repurposed here as a celebratory banner, shown only when a reward is
+  // ready so it never collides with the customer's name.
+  const celebration = pass.primaryFields.find((f) => f.key === 'celebration');
+  if (celebration) {
+    celebration.value = ready ? `🌮 ${t.rewardReady(rewardText)}` : '';
   }
 
   // backFields: terms/website/contact/address labels and values.

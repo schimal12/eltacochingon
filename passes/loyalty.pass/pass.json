@@ -11,6 +11,12 @@
   "backgroundColor": "rgb(247,247,247)",
   "labelColor": "rgb(130,125,120)",
   "storeCard": {
+    "primaryFields": [
+      {
+        "key": "celebration",
+        "value": ""
+      }
+    ],
     "secondaryFields": [
       {
         "key": "name",
