@@ -61,7 +61,6 @@ async function generatePass(customer) {
     authenticationToken: customer.auth_token,
     webServiceURL:       `${baseUrl}/v1/`,
     organizationName:    process.env.ORG_NAME     || 'Your Restaurant',
-    logoText:            process.env.ORG_NAME     || 'Your Restaurant',
     passTypeIdentifier:  process.env.PASS_TYPE_ID || 'pass.com.yourrestaurant.loyalty',
     teamIdentifier:      process.env.TEAM_ID      || 'YOURTEAMID',
     description:         'Loyalty Card',

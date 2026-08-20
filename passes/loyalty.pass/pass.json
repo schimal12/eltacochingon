@@ -7,10 +7,9 @@
   "authenticationToken": "PLACEHOLDER_AUTH_TOKEN",
   "description": "Loyalty Card",
   "organizationName": "Your Restaurant",
-  "logoText": "Your Restaurant",
-  "foregroundColor": "rgb(255,255,255)",
-  "backgroundColor": "rgb(180,50,30)",
-  "labelColor": "rgb(255,220,200)",
+  "foregroundColor": "rgb(45,45,45)",
+  "backgroundColor": "rgb(247,247,247)",
+  "labelColor": "rgb(130,125,120)",
   "storeCard": {
     "primaryFields": [
       {
