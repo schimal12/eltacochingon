@@ -4,7 +4,7 @@
   "serialNumber": "PLACEHOLDER",
   "teamIdentifier": "YOURTEAMID",
   "webServiceURL": "https://yourdomain.com/v1/",
-  "authenticationToken": "PLACEHOLDER",
+  "authenticationToken": "PLACEHOLDER_AUTH_TOKEN",
   "description": "Loyalty Card",
   "organizationName": "Your Restaurant",
   "logoText": "Your Restaurant",
