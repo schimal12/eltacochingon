@@ -602,8 +602,9 @@
 
     tbody.innerHTML = customers.map((c) => {
       const required = c.stampsRequired || 10;
-      const cycle    = c.stamps % required;
-      const ready    = cycle === 0 && c.stamps > 0;
+      const cycle = c.stamps % required;
+      const ready = cycle === 0 && c.stamps > 0;
+      const displayCount = ready ? required : cycle;
       const dots = Array.from({ length: required }, (_, i) => {
         const cls = i < cycle ? 'stamp-dot filled' : (i === required - 1 && ready ? 'stamp-dot reward' : 'stamp-dot');
         return `<span class="${cls}" title="Stamp ${i+1}"></span>`;
@@ -619,7 +620,7 @@
         <td data-label="Stamps">
           <div class="stamp-bar">
             ${dots}
-            <span class="stamp-count">${c.stamps}/${required}</span>
+            <span class="stamp-count">${displayCount}/${required}</span>
           </div>
         </td>
         <td data-label="Promo" style="color:var(--muted);font-size:12px;">${required} → ${escHtml(c.rewardText || 'a free taco')}</td>
