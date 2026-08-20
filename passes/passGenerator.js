@@ -3,6 +3,7 @@
 const { PKPass } = require('passkit-generator');
 const fs = require('fs');
 const path = require('path');
+const { getSetting } = require('../db/database');
 
 // passkit-generator v3 requires the model folder to end with .pass
 const TEMPLATE_DIR = path.join(__dirname, 'loyalty.pass');
@@ -37,6 +38,8 @@ const TRANSLATIONS = {
     websiteLabel:      'Website',
     contactLabel:      'Contact',
     addressLabel:      'Location',
+    infoLabel:         'Info',
+    infoValue:         'Welcome to our loyalty program!',
     barcodeAlt:        'Loyalty Card',
   },
   es: {
@@ -51,6 +54,8 @@ const TRANSLATIONS = {
     websiteLabel:      'Sitio Web',
     contactLabel:      'Contacto',
     addressLabel:      'Ubicación',
+    infoLabel:         'Aviso',
+    infoValue:         '¡Bienvenido a nuestro programa de lealtad!',
     barcodeAlt:        'Tarjeta de Lealtad',
   },
 };
@@ -165,6 +170,15 @@ async function generatePass(customer) {
   if (address) {
     address.label = t.addressLabel;
     address.value = process.env.MAPS_URL || 'https://maps.app.goo.gl/ZyA3LPzwp2U5BKuh8';
+  }
+
+  // Small, low-key field whose only job is carrying /admin/notify broadcast
+  // text -- Wallet only shows a lock-screen banner for a push when some
+  // field's value visibly changed, via this field's changeMessage template.
+  const info = pass.backFields.find((f) => f.key === 'info');
+  if (info) {
+    info.label = t.infoLabel;
+    info.value = (await getSetting('announcement')) || t.infoValue;
   }
 
   // Barcode encodes the serial number so a POS scanner can look up the customer
