@@ -293,9 +293,52 @@
 
     /* ── Misc ──────────────────────────────────────────── */
     .empty-state { text-align: center; padding: 40px; color: var(--muted); }
-    .auto-refresh { font-size: 11px; color: var(--muted); }
     .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Mobile ────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .topbar {
+        flex-wrap: wrap;
+        height: auto;
+        padding: 10px 14px;
+        gap: 8px 10px;
+      }
+      .topbar h1 { font-size: 16px; }
+      .right { width: 100%; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+
+      main { padding: 16px 12px; }
+      #authGate { margin: 40px auto; padding: 28px 20px; }
+
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .stat-card { padding: 12px; }
+      .stat-card .value { font-size: 22px; }
+
+      .panel-header { flex-wrap: wrap; gap: 8px; }
+
+      /* Stacked-card table for narrow screens */
+      table, thead, tbody, th, td, tr { display: block; width: 100%; }
+      thead { display: none; }
+      tbody tr {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: 10px;
+        padding: 10px 12px;
+      }
+      tbody tr:hover td { background: transparent; }
+      td { border-bottom: none; padding: 6px 0; }
+      td.name-cell { padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+      td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--muted);
+        margin-bottom: 3px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -305,7 +348,6 @@
   <div class="right">
     <a class="btn btn-primary btn-sm" id="scanLink" href="#">📷 Scan Customer</a>
     <span class="badge" id="deviceCount">0 devices</span>
-    <span class="auto-refresh" id="refreshTimer">Refreshes in 30s</span>
     <button class="btn btn-secondary btn-sm" id="refreshBtn" onclick="loadCustomers()">↻ Refresh</button>
   </div>
 </div>
@@ -396,7 +438,7 @@
           <p style="color:var(--muted);font-size:12px;margin-bottom:8px;">
             Print or display this at your counter so customers can sign up.
           </p>
-          <a href="#" id="qrLink" class="qr-link" target="_blank">📷 View QR Code</a>
+          <a href="/" id="qrLink" class="qr-link" target="_blank">📷 View QR Code</a>
         </div>
       </div>
 
@@ -412,8 +454,6 @@
   let allCustomers = [];
   let deviceCount = 0;
   let refreshInterval = null;
-  let countdownInterval = null;
-  let refreshSeconds = 30;
 
   // ── Auth ────────────────────────────────────────────────────────────────────
 
@@ -504,13 +544,13 @@
           <strong>${escHtml(c.name)}</strong>
           <span>${escHtml(c.email)}</span>
         </td>
-        <td>
+        <td data-label="Stamps">
           <div class="stamp-bar">
             ${dots}
             <span class="stamp-count">${c.stamps}/10</span>
           </div>
         </td>
-        <td style="color:var(--muted)">${date}</td>
+        <td data-label="Joined" style="color:var(--muted)">${date}</td>
         <td>
           <div class="row-actions">
             <button class="btn btn-stamp btn-sm" onclick="addStamp('${c.id}', this)">
@@ -615,9 +655,6 @@
   // ── QR link ─────────────────────────────────────────────────────────────────
 
   function updateQRLink() {
-    const link = document.getElementById('qrLink');
-    link.href = '/admin/qr?token=' + encodeURIComponent(adminToken);
-
     const scanLink = document.getElementById('scanLink');
     scanLink.href = '/admin/scan?token=' + encodeURIComponent(adminToken);
   }
@@ -626,16 +663,7 @@
 
   function startAutoRefresh() {
     if (refreshInterval) return; // already running
-
-    refreshSeconds = 30;
-    countdownInterval = setInterval(() => {
-      refreshSeconds--;
-      document.getElementById('refreshTimer').textContent = `Refreshes in ${refreshSeconds}s`;
-      if (refreshSeconds <= 0) {
-        refreshSeconds = 30;
-        loadCustomers();
-      }
-    }, 1000);
+    refreshInterval = setInterval(loadCustomers, 30000);
   }
 
   // ── Toast ────────────────────────────────────────────────────────────────────

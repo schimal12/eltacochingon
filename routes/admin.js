@@ -2,7 +2,6 @@
 
 const express = require('express');
 const path    = require('path');
-const QRCode  = require('qrcode');
 
 const {
   getAllCustomers,
@@ -213,56 +212,6 @@ router.post('/admin/notify', adminAuth, async (req, res) => {
     return res.json({ success: true, sent: tokens.length });
   } catch (err) {
     console.error('[ADMIN] Error sending broadcast push:', err);
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-// ── GET /admin/qr ─────────────────────────────────────────────────────────────
-
-router.get('/admin/qr', adminAuth, async (req, res) => {
-  try {
-    const baseUrl  = (process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
-    const registerUrl = `${baseUrl}/register`;
-
-    const format = req.query.format || 'png'; // 'png' or 'svg'
-
-    if (format === 'svg') {
-      const svg = await QRCode.toString(registerUrl, { type: 'svg' });
-      res.set('Content-Type', 'image/svg+xml');
-      return res.send(svg);
-    }
-
-    // Default: PNG data URL wrapped in simple HTML for easy display
-    const dataUrl = await QRCode.toDataURL(registerUrl, {
-      width:  300,
-      margin: 2,
-      color:  { dark: '#B4321E', light: '#FFFFFF' },
-    });
-
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Registration QR Code</title>
-  <style>
-    body { font-family: sans-serif; text-align: center; padding: 40px; background: #fdf6f0; }
-    img  { border: 4px solid #B4321E; border-radius: 8px; }
-    p    { color: #333; margin-top: 16px; font-size: 14px; }
-    a    { color: #B4321E; }
-  </style>
-</head>
-<body>
-  <h1>${process.env.ORG_NAME || 'Your Restaurant'} — Loyalty Sign-Up</h1>
-  <img src="${dataUrl}" alt="Registration QR Code" width="300" height="300">
-  <p>Scan to register for our loyalty card.<br>
-  Or visit <a href="${registerUrl}">${registerUrl}</a></p>
-</body>
-</html>`;
-
-    res.set('Content-Type', 'text/html');
-    return res.send(html);
-  } catch (err) {
-    console.error('[ADMIN] Error generating QR code:', err);
     return res.status(500).json({ error: err.message });
   }
 });
