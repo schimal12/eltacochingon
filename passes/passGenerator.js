@@ -3,7 +3,6 @@
 const { PKPass } = require('passkit-generator');
 const fs = require('fs');
 const path = require('path');
-const { getSetting } = require('../db/database');
 
 // passkit-generator v3 requires the model folder to end with .pass
 const TEMPLATE_DIR = path.join(__dirname, 'loyalty.pass');
@@ -37,8 +36,7 @@ const TRANSLATIONS = {
     termsValue:        'One stamp per visit. Reward valid for 30 days after earning. Not transferable. Management reserves the right to modify or discontinue this program at any time.',
     websiteLabel:      'Website',
     contactLabel:      'Contact',
-    announcementLabel: 'Latest Update',
-    announcementValue: 'Welcome to our loyalty program!',
+    addressLabel:      'Location',
     barcodeAlt:        'Loyalty Card',
   },
   es: {
@@ -52,8 +50,7 @@ const TRANSLATIONS = {
     termsValue:        'Un sello por visita. La recompensa es válida por 30 días después de obtenerla. No transferible. La administración se reserva el derecho de modificar o descontinuar este programa en cualquier momento.',
     websiteLabel:      'Sitio Web',
     contactLabel:      'Contacto',
-    announcementLabel: 'Última Actualización',
-    announcementValue: '¡Bienvenido a nuestro programa de lealtad!',
+    addressLabel:      'Ubicación',
     barcodeAlt:        'Tarjeta de Lealtad',
   },
 };
@@ -145,8 +142,7 @@ async function generatePass(customer) {
     pass.auxiliaryFields[0].value = nextRewardText(customer.stamps, t);
   }
 
-  // backFields: terms/website/contact labels, and the latest broadcast
-  // message from /admin/notify on the "announcement" field.
+  // backFields: terms/website/contact/address labels and values.
   const terms = pass.backFields.find((f) => f.key === 'terms');
   if (terms) {
     terms.label = t.termsLabel;
@@ -156,19 +152,19 @@ async function generatePass(customer) {
   const website = pass.backFields.find((f) => f.key === 'website');
   if (website) {
     website.label = t.websiteLabel;
-    website.value = baseUrl;
+    website.value = process.env.INSTAGRAM_URL || 'https://www.instagram.com/eltacochingon/';
   }
 
   const contact = pass.backFields.find((f) => f.key === 'contact');
   if (contact) {
     contact.label = t.contactLabel;
-    contact.value = process.env.CONTACT_EMAIL || 'hola@eltacochingon.com';
+    contact.value = process.env.CONTACT_PHONE || '925 666 685';
   }
 
-  const announcement = pass.backFields.find((f) => f.key === 'announcement');
-  if (announcement) {
-    announcement.label = t.announcementLabel;
-    announcement.value = (await getSetting('announcement')) || t.announcementValue;
+  const address = pass.backFields.find((f) => f.key === 'address');
+  if (address) {
+    address.label = t.addressLabel;
+    address.value = process.env.MAPS_URL || 'https://maps.app.goo.gl/ZyA3LPzwp2U5BKuh8';
   }
 
   // Barcode encodes the serial number so a POS scanner can look up the customer

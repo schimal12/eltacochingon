@@ -47,10 +47,9 @@
         "value": "hola@eltacochingon.com"
       },
       {
-        "key": "announcement",
-        "label": "Latest Update",
-        "value": "Welcome to our loyalty program!",
-        "changeMessage": "%@"
+        "key": "address",
+        "label": "Location",
+        "value": "https://tacochingonpkpass.onrender.com"
       }
     ]
   },
