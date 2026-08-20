@@ -29,11 +29,15 @@ function getProvider() {
     return null;
   }
 
+  // Wallet pass push certificates only work against Apple's production APNs
+  // gateway — unlike regular app push, there's no sandbox/dev environment
+  // for Passbook/Wallet updates, so this must never be conditional on
+  // NODE_ENV or similar.
   provider = new apn.Provider({
     cert:        resolvedCert,
     key:         resolvedKey,
     passphrase:  process.env.CERT_PASSPHRASE || undefined,
-    production:  process.env.NODE_ENV === 'production',
+    production:  true,
   });
 
   return provider;
