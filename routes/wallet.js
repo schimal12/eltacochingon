@@ -38,7 +38,7 @@ async function verifyPassAuth(req, res, next) {
       return res.status(401).json({ error: 'Missing authorization token' });
     }
 
-    const customer = getCustomerBySerial(serialNumber);
+    const customer = await getCustomerBySerial(serialNumber);
     if (!customer) {
       return res.status(404).json({ error: 'Pass not found' });
     }
@@ -72,7 +72,7 @@ router.post(
       }
 
       // node-apn / Apple expect a hex push token
-      registerDevice({
+      await registerDevice({
         deviceLibraryId: deviceLibraryIdentifier,
         pushToken,
         serialNumber,
@@ -97,7 +97,7 @@ router.delete(
     try {
       const { deviceLibraryIdentifier, serialNumber } = req.params;
 
-      unregisterDevice({ deviceLibraryId: deviceLibraryIdentifier, serialNumber });
+      await unregisterDevice({ deviceLibraryId: deviceLibraryIdentifier, serialNumber });
 
       return res.status(200).send();
     } catch (err) {
@@ -119,7 +119,7 @@ router.get(
       const { passTypeIdentifier } = req.params;
       const { passesUpdatedSince } = req.query;
 
-      const serials = getSerialsUpdatedSince(passTypeIdentifier, passesUpdatedSince || null);
+      const serials = await getSerialsUpdatedSince(passTypeIdentifier, passesUpdatedSince || null);
 
       if (serials.length === 0) {
         // 204 means "nothing has changed"

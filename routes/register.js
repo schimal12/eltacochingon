@@ -36,15 +36,15 @@ router.post('/register', async (req, res) => {
     }
 
     // Return existing pass if the customer is already registered
-    let customer = getCustomerByEmail(email);
+    let customer = await getCustomerByEmail(email);
 
     if (!customer) {
       const id           = uuidv4();
       const serialNumber = uuidv4();
       const authToken    = uuidv4().replace(/-/g, ''); // 32-char hex token
 
-      createCustomer({ id, name, email, serialNumber, authToken, lang });
-      customer = getCustomerByEmail(email);
+      await createCustomer({ id, name, email, serialNumber, authToken, lang });
+      customer = await getCustomerByEmail(email);
     }
 
     // Generate the signed PKPass archive

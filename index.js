@@ -51,7 +51,7 @@ app.use((err, req, res, _next) => {
 
 async function start() {
   try {
-    initDatabase();
+    await initDatabase();
     console.log('[DB] Database initialised');
 
     app.listen(PORT, () => {

@@ -52,9 +52,10 @@ router.get('/admin', (_req, res) => {
 
 // ── GET /admin/customers ──────────────────────────────────────────────────────
 
-router.get('/admin/customers', adminAuth, (_req, res) => {
+router.get('/admin/customers', adminAuth, async (_req, res) => {
   try {
-    const customers = getAllCustomers().map((c) => ({
+    const rawCustomers = await getAllCustomers();
+    const customers = rawCustomers.map((c) => ({
       id:           c.id,
       name:         c.name,
       email:        c.email,
@@ -63,7 +64,7 @@ router.get('/admin/customers', adminAuth, (_req, res) => {
       createdAt:    c.created_at,
       updatedAt:    c.updated_at,
     }));
-    return res.json({ customers, deviceCount: getDeviceCount() });
+    return res.json({ customers, deviceCount: await getDeviceCount() });
   } catch (err) {
     console.error('[ADMIN] Error listing customers:', err);
     return res.status(500).json({ error: err.message });
@@ -72,9 +73,9 @@ router.get('/admin/customers', adminAuth, (_req, res) => {
 
 // ── DELETE /admin/customer/:customerId ────────────────────────────────────────
 
-router.delete('/admin/customer/:customerId', adminAuth, (req, res) => {
+router.delete('/admin/customer/:customerId', adminAuth, async (req, res) => {
   try {
-    const deleted = deleteCustomer(req.params.customerId);
+    const deleted = await deleteCustomer(req.params.customerId);
     if (!deleted) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -89,9 +90,9 @@ router.delete('/admin/customer/:customerId', adminAuth, (req, res) => {
 // Used by the scan-to-stamp flow: decode the pass's QR (which encodes the
 // serial number), then look up who it belongs to.
 
-router.get('/admin/customer-by-serial/:serialNumber', adminAuth, (req, res) => {
+router.get('/admin/customer-by-serial/:serialNumber', adminAuth, async (req, res) => {
   try {
-    const customer = getCustomerBySerial(req.params.serialNumber);
+    const customer = await getCustomerBySerial(req.params.serialNumber);
     if (!customer) {
       return res.status(404).json({ error: 'No customer found for this pass' });
     }
@@ -115,7 +116,7 @@ router.get('/admin/customer-by-serial/:serialNumber', adminAuth, (req, res) => {
 // on disk. Useful for diagnosing "notifications aren't working" without a
 // physical device.
 
-router.get('/admin/devices', adminAuth, (_req, res) => {
+router.get('/admin/devices', adminAuth, async (_req, res) => {
   try {
     const fs = require('fs');
     const path = require('path');
@@ -126,7 +127,7 @@ router.get('/admin/devices', adminAuth, (_req, res) => {
     };
 
     return res.json({
-      devices: getAllDevicesWithCustomer(),
+      devices: await getAllDevicesWithCustomer(),
       certs: [
         certCheck('APN_CERT_PATH'),
         certCheck('APN_KEY_PATH'),
@@ -153,15 +154,15 @@ router.post('/admin/stamp/:customerId', adminAuth, async (req, res) => {
   try {
     const { customerId } = req.params;
 
-    const customer = getCustomerById(customerId);
+    const customer = await getCustomerById(customerId);
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const updated = addStamp(customerId);
+    const updated = await addStamp(customerId);
 
     // Send silent push so Apple Wallet fetches the updated pass
-    const devices = getDevicesForSerial(updated.serial_number);
+    const devices = await getDevicesForSerial(updated.serial_number);
     if (devices.length > 0) {
       const tokens = devices.map((d) => d.push_token);
       await sendPassUpdatePush(tokens);
@@ -189,7 +190,7 @@ router.post('/admin/notify', adminAuth, async (req, res) => {
       return res.status(400).json({ error: 'message is required' });
     }
 
-    const serials = getRegisteredSerials();
+    const serials = await getRegisteredSerials();
     if (serials.length === 0) {
       return res.json({ success: true, sent: 0, message: 'No registered devices.' });
     }
@@ -197,10 +198,10 @@ router.post('/admin/notify', adminAuth, async (req, res) => {
     // Store the message so generatePass() can stamp it onto the "announcement"
     // back field, and bump updated_at so the wallet web service doesn't
     // short-circuit the refetch with a 304 (see routes/wallet.js).
-    setSetting('announcement', message);
-    touchCustomers(serials);
+    await setSetting('announcement', message);
+    await touchCustomers(serials);
 
-    const devices = getDevicesForSerials(serials);
+    const devices = await getDevicesForSerials(serials);
     const tokens  = [...new Set(devices.map((d) => d.push_token))];
 
     // Wallet passes can't display arbitrary push text — this sends the

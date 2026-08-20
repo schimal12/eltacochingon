@@ -164,7 +164,7 @@ async function generatePass(customer) {
   const announcement = pass.backFields.find((f) => f.key === 'announcement');
   if (announcement) {
     announcement.label = t.announcementLabel;
-    announcement.value = getSetting('announcement') || t.announcementValue;
+    announcement.value = (await getSetting('announcement')) || t.announcementValue;
   }
 
   // Barcode encodes the serial number so a POS scanner can look up the customer
