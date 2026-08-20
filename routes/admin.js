@@ -7,7 +7,9 @@ const QRCode  = require('qrcode');
 const {
   getAllCustomers,
   getCustomerById,
+  getCustomerBySerial,
   addStamp,
+  deleteCustomer,
   getDevicesForSerial,
   getRegisteredSerials,
   getDevicesForSerials,
@@ -64,6 +66,50 @@ router.get('/admin/customers', adminAuth, (_req, res) => {
     console.error('[ADMIN] Error listing customers:', err);
     return res.status(500).json({ error: err.message });
   }
+});
+
+// ── DELETE /admin/customer/:customerId ────────────────────────────────────────
+
+router.delete('/admin/customer/:customerId', adminAuth, (req, res) => {
+  try {
+    const deleted = deleteCustomer(req.params.customerId);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[ADMIN] Error deleting customer:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /admin/customer-by-serial/:serialNumber ───────────────────────────────
+// Used by the scan-to-stamp flow: decode the pass's QR (which encodes the
+// serial number), then look up who it belongs to.
+
+router.get('/admin/customer-by-serial/:serialNumber', adminAuth, (req, res) => {
+  try {
+    const customer = getCustomerBySerial(req.params.serialNumber);
+    if (!customer) {
+      return res.status(404).json({ error: 'No customer found for this pass' });
+    }
+    return res.json({
+      id:           customer.id,
+      name:         customer.name,
+      email:        customer.email,
+      stamps:       customer.stamps,
+      serialNumber: customer.serial_number,
+    });
+  } catch (err) {
+    console.error('[ADMIN] Error looking up customer by serial:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /admin/scan ────────────────────────────────────────────────────────────
+
+router.get('/admin/scan', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../public/scan.html'));
 });
 
 // ── POST /admin/stamp/:customerId ─────────────────────────────────────────────

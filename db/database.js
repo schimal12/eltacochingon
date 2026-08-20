@@ -92,6 +92,20 @@ function getAllCustomers() {
 }
 
 /**
+ * Delete a customer and any devices registered for their pass.
+ * Returns false if the customer did not exist.
+ */
+function deleteCustomer(id) {
+  const db = getDb();
+  const customer = getCustomerById(id);
+  if (!customer) return false;
+
+  db.prepare('DELETE FROM devices WHERE serial_number = ?').run(customer.serial_number);
+  db.prepare('DELETE FROM customers WHERE id = ?').run(id);
+  return true;
+}
+
+/**
  * Increment stamps by 1 and update the updated_at timestamp.
  * Returns the updated customer row.
  */
@@ -222,6 +236,7 @@ module.exports = {
   getCustomerById,
   getAllCustomers,
   addStamp,
+  deleteCustomer,
   // devices
   registerDevice,
   unregisterDevice,

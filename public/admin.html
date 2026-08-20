@@ -194,6 +194,11 @@
     .btn-stamp { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
     .btn-stamp:hover { background: #fde68a; }
 
+    .btn-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .btn-danger:hover { background: #fecaca; }
+
+    .row-actions { display: flex; gap: 6px; }
+
     .btn-secondary { background: var(--border); color: var(--text); }
     .btn-secondary:hover { background: #d1d5db; }
 
@@ -298,6 +303,7 @@
 <div class="topbar">
   <h1>🌮 Loyalty Admin</h1>
   <div class="right">
+    <a class="btn btn-primary btn-sm" id="scanLink" href="#">📷 Scan Customer</a>
     <span class="badge" id="deviceCount">0 devices</span>
     <span class="auto-refresh" id="refreshTimer">Refreshes in 30s</span>
     <button class="btn btn-secondary btn-sm" id="refreshBtn" onclick="loadCustomers()">↻ Refresh</button>
@@ -505,9 +511,14 @@
         </td>
         <td style="color:var(--muted)">${date}</td>
         <td>
-          <button class="btn btn-stamp btn-sm" onclick="addStamp('${c.id}', this)">
-            + Stamp
-          </button>
+          <div class="row-actions">
+            <button class="btn btn-stamp btn-sm" onclick="addStamp('${c.id}', this)">
+              + Stamp
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="removeCustomer('${c.id}', '${escHtml(c.name).replace(/'/g, "\\'")}', this)">
+              Delete
+            </button>
+          </div>
         </td>
       </tr>`;
     }).join('');
@@ -549,6 +560,30 @@
     }
   }
 
+  // ── Delete customer ─────────────────────────────────────────────────────────
+
+  async function removeCustomer(customerId, name, btn) {
+    if (!confirm(`Delete ${name}'s loyalty card? This cannot be undone.`)) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+
+    try {
+      const resp = await apiFetch(`/admin/customer/${customerId}`, { method: 'DELETE' });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Failed');
+
+      toast(`${name} deleted`, 'success');
+      allCustomers = allCustomers.filter(c => c.id !== customerId);
+      filterCustomers();
+      updateStats();
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Delete';
+    }
+  }
+
   // ── Broadcast notification ──────────────────────────────────────────────────
 
   async function sendNotification() {
@@ -581,6 +616,9 @@
   function updateQRLink() {
     const link = document.getElementById('qrLink');
     link.href = '/admin/qr?token=' + encodeURIComponent(adminToken);
+
+    const scanLink = document.getElementById('scanLink');
+    scanLink.href = '/admin/scan?token=' + encodeURIComponent(adminToken);
   }
 
   // ── Auto-refresh ─────────────────────────────────────────────────────────────

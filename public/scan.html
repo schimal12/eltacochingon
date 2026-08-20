@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scan Customer — Loyalty Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand:      #B4321E;
+      --brand-dark: #8e2617;
+      --bg:         #f7f8fa;
+      --surface:    #fff;
+      --border:     #e5e7eb;
+      --text:       #111827;
+      --muted:      #6b7280;
+      --radius:     10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .topbar {
+      background: var(--brand);
+      color: #fff;
+      padding: 0 20px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+
+    .topbar h1 { font-size: 17px; font-weight: 700; }
+    .topbar a { color: #fff; text-decoration: none; font-size: 13px; opacity: 0.9; }
+
+    main {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 20px 16px 40px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      text-align: center;
+    }
+
+    .form-group { margin-bottom: 14px; text-align: left; }
+    label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+
+    input[type="password"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    input:focus { outline: none; border-color: var(--brand); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px 18px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+      width: 100%;
+    }
+
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--brand); color: #fff; }
+    .btn-primary:active { background: var(--brand-dark); }
+    .btn-secondary { background: var(--border); color: var(--text); margin-top: 10px; }
+
+    #videoWrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: #000;
+      margin-bottom: 16px;
+    }
+
+    #video { width: 100%; height: 100%; object-fit: cover; }
+
+    #scanFrame {
+      position: absolute;
+      inset: 12%;
+      border: 3px solid rgba(255,255,255,0.8);
+      border-radius: 16px;
+      pointer-events: none;
+    }
+
+    .hint { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+
+    .customer-card { display: none; }
+    .customer-card .taco-emoji { font-size: 22px; letter-spacing: 2px; margin: 12px 0; line-height: 1.6; }
+    .customer-card h2 { font-size: 20px; margin-bottom: 4px; }
+    .customer-card .email { color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+    .customer-card .stamp-count { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #111;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 24px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: transform 0.3s ease;
+      z-index: 9999;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.success { background: #065f46; }
+    #toast.error   { background: #991b1b; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>📷 Scan Customer</h1>
+  <a href="/admin">← Back to Dashboard</a>
+</div>
+
+<main>
+
+  <!-- Auth gate -->
+  <div id="authGate" class="panel" style="display:none;">
+    <h2 style="margin-bottom:8px;">Admin Login</h2>
+    <p class="hint">Enter your admin token to continue.</p>
+    <div class="form-group">
+      <label for="tokenInput">Admin Token</label>
+      <input type="password" id="tokenInput" placeholder="Admin token" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" onclick="login()">Sign In</button>
+  </div>
+
+  <!-- Scanner -->
+  <div id="scannerPanel" class="panel" style="display:none;">
+    <div id="videoWrap">
+      <video id="video" playsinline muted></video>
+      <div id="scanFrame"></div>
+    </div>
+    <p class="hint" id="scanHint">Point the camera at the QR code on the customer's Wallet pass.</p>
+    <button class="btn btn-primary" id="startBtn" onclick="startScanning()">Start Camera</button>
+  </div>
+
+  <!-- Result -->
+  <div id="resultPanel" class="panel customer-card">
+    <h2 id="custName"></h2>
+    <div class="email" id="custEmail"></div>
+    <div class="taco-emoji" id="custStamps"></div>
+    <div class="stamp-count" id="custStampCount"></div>
+    <button class="btn btn-primary" id="stampBtn" onclick="stampCurrent()">+ Add Stamp</button>
+    <button class="btn btn-secondary" onclick="resetScanner()">Scan Next Customer</button>
+  </div>
+
+  <!-- Not found -->
+  <div id="notFoundPanel" class="panel" style="display:none;">
+    <h2 style="margin-bottom:8px;">No match found</h2>
+    <p class="hint">This QR code doesn't belong to a registered loyalty card.</p>
+    <button class="btn btn-primary" onclick="resetScanner()">Try Again</button>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<canvas id="canvas" style="display:none;"></canvas>
+
+<script>
+  let adminToken = new URLSearchParams(location.search).get('token') || '';
+  let stream = null;
+  let scanLoopId = null;
+  let currentCustomer = null;
+
+  const video  = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const ctx    = canvas.getContext('2d', { willReadFrequently: true });
+
+  // ── Auth ────────────────────────────────────────────────────────────────────
+
+  function login() {
+    const token = document.getElementById('tokenInput').value.trim();
+    if (!token) return toast('Enter a token', 'error');
+    adminToken = token;
+    showScanner();
+  }
+
+  document.getElementById('tokenInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') login();
+  });
+
+  function apiFetch(url, opts = {}) {
+    return fetch(url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(adminToken), opts);
+  }
+
+  function showScanner() {
+    document.getElementById('authGate').style.display = 'none';
+    document.getElementById('scannerPanel').style.display = 'block';
+  }
+
+  if (adminToken) {
+    showScanner();
+  } else {
+    document.getElementById('authGate').style.display = 'block';
+  }
+
+  // ── Camera + scanning ──────────────────────────────────────────────────────
+
+  async function startScanning() {
+    const startBtn = document.getElementById('startBtn');
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      });
+      video.srcObject = stream;
+      await video.play();
+      startBtn.style.display = 'none';
+      document.getElementById('scanHint').textContent = 'Scanning…';
+      scanLoopId = requestAnimationFrame(scanFrame);
+    } catch (err) {
+      toast('Camera access denied or unavailable: ' + err.message, 'error');
+    }
+  }
+
+  function scanFrame() {
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+      if (code && code.data) {
+        stopCamera();
+        lookupCustomer(code.data);
+        return;
+      }
+    }
+    scanLoopId = requestAnimationFrame(scanFrame);
+  }
+
+  function stopCamera() {
+    if (scanLoopId) cancelAnimationFrame(scanLoopId);
+    scanLoopId = null;
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+  }
+
+  // ── Lookup + stamp ──────────────────────────────────────────────────────────
+
+  async function lookupCustomer(serialNumber) {
+    try {
+      const resp = await apiFetch(`/admin/customer-by-serial/${encodeURIComponent(serialNumber)}`);
+
+      if (resp.status === 401) {
+        toast('Invalid token', 'error');
+        adminToken = '';
+        document.getElementById('scannerPanel').style.display = 'none';
+        document.getElementById('authGate').style.display = 'block';
+        return;
+      }
+
+      if (resp.status === 404) {
+        document.getElementById('scannerPanel').style.display = 'none';
+        document.getElementById('notFoundPanel').style.display = 'block';
+        return;
+      }
+
+      const customer = await resp.json();
+      if (!resp.ok) throw new Error(customer.error || 'Lookup failed');
+
+      currentCustomer = customer;
+      showCustomer(customer);
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+      resetScanner();
+    }
+  }
+
+  function showCustomer(c) {
+    document.getElementById('scannerPanel').style.display = 'none';
+    document.getElementById('notFoundPanel').style.display = 'none';
+    document.getElementById('resultPanel').style.display = 'block';
+
+    document.getElementById('custName').textContent = c.name;
+    document.getElementById('custEmail').textContent = c.email;
+    renderStampVisual(c.stamps);
+  }
+
+  function renderStampVisual(stamps) {
+    const cycle  = stamps % 10;
+    const filled = cycle === 0 && stamps > 0 ? 10 : cycle;
+    document.getElementById('custStamps').textContent =
+      '🌮'.repeat(filled) + '◯'.repeat(10 - filled);
+    document.getElementById('custStampCount').textContent = `${stamps} stamps total`;
+  }
+
+  async function stampCurrent() {
+    if (!currentCustomer) return;
+    const btn = document.getElementById('stampBtn');
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+
+    try {
+      const resp = await apiFetch(`/admin/stamp/${currentCustomer.id}`, { method: 'POST' });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Failed');
+
+      currentCustomer.stamps = data.stamps;
+      renderStampVisual(data.stamps);
+      toast(data.message || 'Stamp added!', 'success');
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '+ Add Stamp';
+    }
+  }
+
+  function resetScanner() {
+    currentCustomer = null;
+    document.getElementById('resultPanel').style.display = 'none';
+    document.getElementById('notFoundPanel').style.display = 'none';
+    document.getElementById('scannerPanel').style.display = 'block';
+    document.getElementById('startBtn').style.display = 'block';
+    document.getElementById('scanHint').textContent = 'Point the camera at the QR code on the customer\'s Wallet pass.';
+  }
+
+  // ── Toast ────────────────────────────────────────────────────────────────────
+
+  let toastTimer;
+  function toast(msg, type = '') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'show ' + type;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = ''; }, 3000);
+  }
+</script>
+</body>
+</html>
