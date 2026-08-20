@@ -22,6 +22,14 @@ const { generatePass } = require('../passes/passGenerator');
 
 const router = express.Router();
 
+// Every /v1/* call is Wallet talking to us — log method/path/UA regardless of
+// how the handler resolves, so "Wallet never called" is distinguishable from
+// "Wallet called and got rejected" without needing a physical device.
+router.use('/v1', (req, res, next) => {
+  console.log(`[WALLET] ${req.method} ${req.originalUrl} ua="${req.headers['user-agent'] || ''}"`);
+  next();
+});
+
 // ── Auth middleware ───────────────────────────────────────────────────────────
 
 /**
