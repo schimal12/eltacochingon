@@ -116,17 +116,23 @@ async function generatePass(customer) {
   // ── Field values ────────────────────────────────────────────────────────────
   // The getters return live references to the field arrays from pass.json.
   // Mutating the objects in-place is the v3 way of setting field values.
+  //
+  // Note: storeCard has no primaryFields on purpose — that slot renders as
+  // large overlay text directly on top of the strip image, which collided
+  // with the wordmark artwork. Name and stamps live in secondaryFields
+  // instead, which render normally in the field grid below the strip.
 
-  // primaryFields[0] → customer name
-  if (pass.primaryFields.length > 0) {
-    pass.primaryFields[0].label = t.customerLabel;
-    pass.primaryFields[0].value = customer.name;
+  // secondaryFields: customer name + stamp count (taco emoji)
+  const nameField = pass.secondaryFields.find((f) => f.key === 'name');
+  if (nameField) {
+    nameField.label = t.customerLabel;
+    nameField.value = customer.name;
   }
 
-  // secondaryFields[0] → stamp count, rendered as filled/empty taco emoji
-  if (pass.secondaryFields.length > 0) {
-    pass.secondaryFields[0].label = t.stampsLabel;
-    pass.secondaryFields[0].value = stampVisual(customer.stamps);
+  const stampsField = pass.secondaryFields.find((f) => f.key === 'stamps');
+  if (stampsField) {
+    stampsField.label = t.stampsLabel;
+    stampsField.value = stampVisual(customer.stamps);
   }
 
   // auxiliaryFields[0] → next reward message
