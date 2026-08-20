@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loyalty Admin Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand:      #B4321E;
+      --brand-dark: #8e2617;
+      --bg:         #f7f8fa;
+      --surface:    #fff;
+      --border:     #e5e7eb;
+      --text:       #111827;
+      --muted:      #6b7280;
+      --radius:     10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    /* ── Layout ────────────────────────────────────────── */
+    .topbar {
+      background: var(--brand);
+      color: #fff;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+
+    .topbar h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; }
+    .topbar .right { display: flex; align-items: center; gap: 12px; }
+
+    .badge {
+      background: rgba(255,255,255,0.2);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+    /* ── Auth gate ─────────────────────────────────────── */
+    #authGate {
+      max-width: 380px;
+      margin: 80px auto;
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 32px 28px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      text-align: center;
+    }
+
+    #authGate h2 { margin-bottom: 8px; font-size: 20px; }
+    #authGate p  { color: var(--muted); margin-bottom: 24px; }
+
+    /* ── Dashboard ─────────────────────────────────────── */
+    #dashboard { display: none; }
+
+    /* ── Stats strip ───────────────────────────────────── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .stat-card .value { font-size: 28px; font-weight: 700; line-height: 1; }
+    .stat-card .label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    /* ── Panels ────────────────────────────────────────── */
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 768px) { .panels { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .panel-header h2 { font-size: 15px; font-weight: 600; }
+    .panel-body { padding: 18px; }
+
+    /* ── Table ─────────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+
+    .name-cell strong { display: block; }
+    .name-cell span   { color: var(--muted); font-size: 12px; }
+
+    /* ── Stamp progress ────────────────────────────────── */
+    .stamp-bar {
+      display: flex;
+      gap: 3px;
+      align-items: center;
+    }
+
+    .stamp-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1.5px solid #ccc;
+      background: #fff;
+      flex-shrink: 0;
+    }
+
+    .stamp-dot.filled { background: var(--brand); border-color: var(--brand); }
+    .stamp-dot.reward { background: #f59e0b; border-color: #f59e0b; }
+
+    .stamp-count { font-size: 12px; color: var(--muted); margin-left: 6px; white-space: nowrap; }
+
+    /* ── Buttons ───────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 7px 14px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: background 0.15s, transform 0.1s;
+      text-decoration: none;
+    }
+
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary { background: var(--brand); color: #fff; }
+    .btn-primary:hover { background: var(--brand-dark); }
+
+    .btn-stamp { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .btn-stamp:hover { background: #fde68a; }
+
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-secondary:hover { background: #d1d5db; }
+
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    /* ── Search ────────────────────────────────────────── */
+    .search-row {
+      display: flex;
+      gap: 8px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .search-row input {
+      flex: 1;
+      padding: 7px 11px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .search-row input:focus { outline: none; border-color: var(--brand); }
+
+    /* ── Notify panel ──────────────────────────────────── */
+    .notify-form { display: flex; flex-direction: column; gap: 12px; }
+
+    .notify-form textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      resize: vertical;
+      min-height: 90px;
+      font-family: inherit;
+    }
+
+    .notify-form textarea:focus { outline: none; border-color: var(--brand); }
+
+    /* ── Forms (shared) ────────────────────────────────── */
+    .form-group { margin-bottom: 14px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+
+    input[type="password"],
+    input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    input:focus { outline: none; border-color: var(--brand); }
+
+    /* ── Toast ─────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #111;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 24px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: transform 0.3s ease;
+      z-index: 9999;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.success { background: #065f46; }
+    #toast.error   { background: #991b1b; }
+
+    /* ── QR section ────────────────────────────────────── */
+    .qr-link {
+      display: block;
+      text-align: center;
+      padding: 12px;
+      border: 1.5px dashed var(--border);
+      border-radius: 8px;
+      color: var(--brand);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    .qr-link:hover { background: var(--bg); }
+
+    /* ── Misc ──────────────────────────────────────────── */
+    .empty-state { text-align: center; padding: 40px; color: var(--muted); }
+    .auto-refresh { font-size: 11px; color: var(--muted); }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>🌮 Loyalty Admin</h1>
+  <div class="right">
+    <span class="badge" id="deviceCount">0 devices</span>
+    <span class="auto-refresh" id="refreshTimer">Refreshes in 30s</span>
+    <button class="btn btn-secondary btn-sm" id="refreshBtn" onclick="loadCustomers()">↻ Refresh</button>
+  </div>
+</div>
+
+<!-- Auth Gate -->
+<div id="authGate">
+  <h2>Admin Login</h2>
+  <p>Enter your admin token to continue.</p>
+  <div class="form-group">
+    <label for="tokenInput">Admin Token</label>
+    <input type="password" id="tokenInput" placeholder="changeme123" autocomplete="current-password">
+  </div>
+  <button class="btn btn-primary" style="width:100%" onclick="login()">Sign In</button>
+</div>
+
+<!-- Dashboard -->
+<main id="dashboard">
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="value" id="statTotal">–</div>
+      <div class="label">Total Customers</div>
+    </div>
+    <div class="stat-card">
+      <div class="value" id="statStamps">–</div>
+      <div class="label">Stamps Issued</div>
+    </div>
+    <div class="stat-card">
+      <div class="value" id="statRewards">–</div>
+      <div class="label">Rewards Earned</div>
+    </div>
+    <div class="stat-card">
+      <div class="value" id="statDevices">–</div>
+      <div class="label">Wallet Devices</div>
+    </div>
+  </div>
+
+  <div class="panels">
+
+    <!-- Customer table -->
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Customers</h2>
+        <a href="/register" target="_blank" class="btn btn-secondary btn-sm">+ Register Link</a>
+      </div>
+      <div class="search-row">
+        <input type="text" id="searchInput" placeholder="Search by name or email…" oninput="filterCustomers()">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Stamps</th>
+              <th>Joined</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="customerTable">
+            <tr><td colspan="4" class="empty-state">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Side panels -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+      <!-- Broadcast notification -->
+      <div class="panel">
+        <div class="panel-header"><h2>Send Notification</h2></div>
+        <div class="panel-body">
+          <p style="color:var(--muted);font-size:12px;margin-bottom:12px;">
+            Sends a lock-screen notification to all registered Wallet devices.
+          </p>
+          <div class="notify-form">
+            <textarea id="notifyMsg" placeholder="Today is Taco Tuesday! 🌮 Get 2x stamps all day."></textarea>
+            <button class="btn btn-primary" id="notifyBtn" onclick="sendNotification()">Send to All Devices</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- QR Code -->
+      <div class="panel">
+        <div class="panel-header"><h2>Registration QR Code</h2></div>
+        <div class="panel-body">
+          <p style="color:var(--muted);font-size:12px;margin-bottom:8px;">
+            Print or display this at your counter so customers can sign up.
+          </p>
+          <a href="#" id="qrLink" class="qr-link" target="_blank">📷 View QR Code</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+  let adminToken = '';
+  let allCustomers = [];
+  let refreshInterval = null;
+  let countdownInterval = null;
+  let refreshSeconds = 30;
+
+  // ── Auth ────────────────────────────────────────────────────────────────────
+
+  function login() {
+    const token = document.getElementById('tokenInput').value.trim();
+    if (!token) return toast('Enter a token', 'error');
+    adminToken = token;
+    loadCustomers();
+  }
+
+  document.getElementById('tokenInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') login();
+  });
+
+  // ── Load customers ──────────────────────────────────────────────────────────
+
+  async function loadCustomers() {
+    try {
+      const resp = await apiFetch('/admin/customers');
+      if (!resp.ok) {
+        if (resp.status === 401) {
+          toast('Invalid token', 'error');
+          adminToken = '';
+          document.getElementById('authGate').style.display = 'block';
+          document.getElementById('dashboard').style.display = 'none';
+          return;
+        }
+        throw new Error('Server error');
+      }
+
+      const data = await resp.json();
+      allCustomers = data.customers || [];
+
+      // Show dashboard
+      document.getElementById('authGate').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+
+      updateStats();
+      renderTable(allCustomers);
+      updateQRLink();
+      startAutoRefresh();
+    } catch (err) {
+      toast('Failed to load customers: ' + err.message, 'error');
+    }
+  }
+
+  function apiFetch(url, opts = {}) {
+    return fetch(url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(adminToken), {
+      headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+      ...opts,
+    });
+  }
+
+  // ── Stats ───────────────────────────────────────────────────────────────────
+
+  function updateStats() {
+    const total   = allCustomers.length;
+    const stamps  = allCustomers.reduce((s, c) => s + c.stamps, 0);
+    const rewards = allCustomers.reduce((s, c) => s + Math.floor(c.stamps / 10), 0);
+
+    document.getElementById('statTotal').textContent   = total;
+    document.getElementById('statStamps').textContent  = stamps;
+    document.getElementById('statRewards').textContent = rewards;
+    // Devices stat is placeholder — would need a separate endpoint
+    document.getElementById('statDevices').textContent = '–';
+    document.getElementById('deviceCount').textContent = `${total} customer${total !== 1 ? 's' : ''}`;
+  }
+
+  // ── Table ───────────────────────────────────────────────────────────────────
+
+  function renderTable(customers) {
+    const tbody = document.getElementById('customerTable');
+    if (customers.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No customers yet. Share the registration link!</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = customers.map((c) => {
+      const dots = Array.from({ length: 10 }, (_, i) => {
+        const cls = i < (c.stamps % 10) ? 'stamp-dot filled' : (i === 9 && c.stamps % 10 === 0 && c.stamps > 0 ? 'stamp-dot reward' : 'stamp-dot');
+        return `<span class="${cls}" title="Stamp ${i+1}"></span>`;
+      }).join('');
+
+      const date = new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+      return `<tr>
+        <td class="name-cell">
+          <strong>${escHtml(c.name)}</strong>
+          <span>${escHtml(c.email)}</span>
+        </td>
+        <td>
+          <div class="stamp-bar">
+            ${dots}
+            <span class="stamp-count">${c.stamps}/10</span>
+          </div>
+        </td>
+        <td style="color:var(--muted)">${date}</td>
+        <td>
+          <button class="btn btn-stamp btn-sm" onclick="addStamp('${c.id}', this)">
+            + Stamp
+          </button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function filterCustomers() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    if (!q) { renderTable(allCustomers); return; }
+    renderTable(allCustomers.filter(c =>
+      c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)
+    ));
+  }
+
+  // ── Add stamp ───────────────────────────────────────────────────────────────
+
+  async function addStamp(customerId, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+
+    try {
+      const resp = await apiFetch(`/admin/stamp/${customerId}`, { method: 'POST' });
+      const data = await resp.json();
+
+      if (!resp.ok) throw new Error(data.error || 'Failed');
+
+      toast(data.message || 'Stamp added!', 'success');
+
+      // Optimistically update local data
+      const c = allCustomers.find(x => x.id === customerId);
+      if (c) c.stamps += 1;
+
+      filterCustomers();
+      updateStats();
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '+ Stamp';
+    }
+  }
+
+  // ── Broadcast notification ──────────────────────────────────────────────────
+
+  async function sendNotification() {
+    const msg = document.getElementById('notifyMsg').value.trim();
+    if (!msg) { toast('Enter a message first', 'error'); return; }
+
+    const btn = document.getElementById('notifyBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Sending…';
+
+    try {
+      const resp = await apiFetch('/admin/notify', {
+        method: 'POST',
+        body: JSON.stringify({ message: msg }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Failed');
+      toast(`Sent to ${data.sent} device${data.sent !== 1 ? 's' : ''}`, 'success');
+      document.getElementById('notifyMsg').value = '';
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Send to All Devices';
+    }
+  }
+
+  // ── QR link ─────────────────────────────────────────────────────────────────
+
+  function updateQRLink() {
+    const link = document.getElementById('qrLink');
+    link.href = '/admin/qr?token=' + encodeURIComponent(adminToken);
+  }
+
+  // ── Auto-refresh ─────────────────────────────────────────────────────────────
+
+  function startAutoRefresh() {
+    if (refreshInterval) return; // already running
+
+    refreshSeconds = 30;
+    countdownInterval = setInterval(() => {
+      refreshSeconds--;
+      document.getElementById('refreshTimer').textContent = `Refreshes in ${refreshSeconds}s`;
+      if (refreshSeconds <= 0) {
+        refreshSeconds = 30;
+        loadCustomers();
+      }
+    }, 1000);
+  }
+
+  // ── Toast ────────────────────────────────────────────────────────────────────
+
+  let toastTimer;
+  function toast(msg, type = '') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'show ' + type;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = ''; }, 3000);
+  }
+
+  // ── Utils ────────────────────────────────────────────────────────────────────
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+</script>
+</body>
+</html>

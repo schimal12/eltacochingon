@@ -1,0 +1,68 @@
+{
+  "formatVersion": 1,
+  "passTypeIdentifier": "pass.com.yourrestaurant.loyalty",
+  "serialNumber": "PLACEHOLDER",
+  "teamIdentifier": "YOURTEAMID",
+  "webServiceURL": "https://yourdomain.com/v1/",
+  "authenticationToken": "PLACEHOLDER",
+  "description": "Loyalty Card",
+  "organizationName": "Your Restaurant",
+  "logoText": "Your Restaurant",
+  "foregroundColor": "rgb(255,255,255)",
+  "backgroundColor": "rgb(180,50,30)",
+  "labelColor": "rgb(255,220,200)",
+  "storeCard": {
+    "primaryFields": [
+      {
+        "key": "name",
+        "label": "Customer",
+        "value": "Guest"
+      }
+    ],
+    "secondaryFields": [
+      {
+        "key": "stamps",
+        "label": "Stamps",
+        "value": "0/10"
+      }
+    ],
+    "auxiliaryFields": [
+      {
+        "key": "reward",
+        "label": "Next Reward",
+        "value": "Free taco at 10 stamps!"
+      }
+    ],
+    "backFields": [
+      {
+        "key": "terms",
+        "label": "Terms & Conditions",
+        "value": "One stamp per visit. Reward valid for 30 days after earning. Not transferable. Management reserves the right to modify or discontinue this program at any time."
+      },
+      {
+        "key": "website",
+        "label": "Website",
+        "value": "https://yourdomain.com"
+      },
+      {
+        "key": "contact",
+        "label": "Contact",
+        "value": "loyalty@yourdomain.com"
+      }
+    ]
+  },
+  "barcode": {
+    "format": "PKBarcodeFormatQR",
+    "message": "PLACEHOLDER",
+    "messageEncoding": "iso-8859-1",
+    "altText": "Loyalty Card"
+  },
+  "barcodes": [
+    {
+      "format": "PKBarcodeFormatQR",
+      "message": "PLACEHOLDER",
+      "messageEncoding": "iso-8859-1",
+      "altText": "Loyalty Card"
+    }
+  ]
+}
