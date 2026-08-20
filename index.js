@@ -31,6 +31,15 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ── Public config for static pages (register.html etc.) ────────────────────────
+
+app.get('/config', (_req, res) => {
+  res.json({
+    orgName: process.env.ORG_NAME || 'Your Restaurant',
+    baseUrl: (process.env.BASE_URL || '').replace(/\/$/, ''),
+  });
+});
+
 // ── Global error handler ──────────────────────────────────────────────────────
 
 app.use((err, req, res, _next) => {

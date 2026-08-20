@@ -25,6 +25,7 @@ function initDatabase() {
       serial_number TEXT UNIQUE NOT NULL,
       auth_token    TEXT NOT NULL,
       stamps        INTEGER DEFAULT 0,
+      lang          TEXT NOT NULL DEFAULT 'en',
       created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -44,6 +45,12 @@ function initDatabase() {
     );
   `);
 
+  // Migration: add lang column to databases created before it existed
+  const customerCols = db.prepare("PRAGMA table_info(customers)").all().map((c) => c.name);
+  if (!customerCols.includes('lang')) {
+    db.exec("ALTER TABLE customers ADD COLUMN lang TEXT NOT NULL DEFAULT 'en'");
+  }
+
   return db;
 }
 
@@ -59,12 +66,12 @@ function getDb() {
 
 // ── Customer queries ──────────────────────────────────────────────────────────
 
-function createCustomer({ id, name, email, serialNumber, authToken }) {
+function createCustomer({ id, name, email, serialNumber, authToken, lang }) {
   const stmt = getDb().prepare(`
-    INSERT INTO customers (id, name, email, serial_number, auth_token)
-    VALUES (@id, @name, @email, @serialNumber, @authToken)
+    INSERT INTO customers (id, name, email, serial_number, auth_token, lang)
+    VALUES (@id, @name, @email, @serialNumber, @authToken, @lang)
   `);
-  stmt.run({ id, name, email, serialNumber, authToken });
+  stmt.run({ id, name, email, serialNumber, authToken, lang: lang === 'es' ? 'es' : 'en' });
 }
 
 function getCustomerByEmail(email) {

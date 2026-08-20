@@ -24,6 +24,7 @@ router.post('/register', async (req, res) => {
   try {
     const name  = (req.body.name  || '').trim();
     const email = (req.body.email || '').trim().toLowerCase();
+    const lang  = req.body.lang === 'es' ? 'es' : 'en';
 
     if (!name || !email) {
       return res.status(400).json({ error: 'Name and email are required.' });
@@ -42,7 +43,7 @@ router.post('/register', async (req, res) => {
       const serialNumber = uuidv4();
       const authToken    = uuidv4().replace(/-/g, ''); // 32-char hex token
 
-      createCustomer({ id, name, email, serialNumber, authToken });
+      createCustomer({ id, name, email, serialNumber, authToken, lang });
       customer = getCustomerByEmail(email);
     }
 

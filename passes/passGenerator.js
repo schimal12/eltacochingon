@@ -23,13 +23,51 @@ function readCert(envPath) {
   return fs.readFileSync(resolved);
 }
 
+// ── Translations ─────────────────────────────────────────────────────────────
+
+const TRANSLATIONS = {
+  en: {
+    description:      'Loyalty Card',
+    customerLabel:     'Customer',
+    stampsLabel:       'Stamps',
+    rewardLabel:       'Next Reward',
+    rewardReady:       'Collect your free taco!',
+    rewardRemaining:   (n) => `${n} more stamp${n === 1 ? '' : 's'} for a free taco`,
+    termsLabel:        'Terms & Conditions',
+    termsValue:        'One stamp per visit. Reward valid for 30 days after earning. Not transferable. Management reserves the right to modify or discontinue this program at any time.',
+    websiteLabel:      'Website',
+    contactLabel:      'Contact',
+    announcementLabel: 'Latest Update',
+    announcementValue: 'Welcome to our loyalty program!',
+    barcodeAlt:        'Loyalty Card',
+  },
+  es: {
+    description:      'Tarjeta de Lealtad',
+    customerLabel:     'Cliente',
+    stampsLabel:       'Sellos',
+    rewardLabel:       'Próxima Recompensa',
+    rewardReady:       '¡Reclama tu taco gratis!',
+    rewardRemaining:   (n) => `${n} sello${n === 1 ? '' : 's'} más para un taco gratis`,
+    termsLabel:        'Términos y Condiciones',
+    termsValue:        'Un sello por visita. La recompensa es válida por 30 días después de obtenerla. No transferible. La administración se reserva el derecho de modificar o descontinuar este programa en cualquier momento.',
+    websiteLabel:      'Sitio Web',
+    contactLabel:      'Contacto',
+    announcementLabel: 'Última Actualización',
+    announcementValue: '¡Bienvenido a nuestro programa de lealtad!',
+    barcodeAlt:        'Tarjeta de Lealtad',
+  },
+};
+
+function translationsFor(lang) {
+  return TRANSLATIONS[lang] || TRANSLATIONS.en;
+}
+
 /**
  * Compute a human-friendly "next reward" string from the current stamp count.
  */
-function nextRewardText(stamps) {
+function nextRewardText(stamps, t) {
   const remaining = Math.max(0, 10 - (stamps % 10));
-  if (remaining === 0) return 'Collect your free taco!';
-  return `${remaining} more stamp${remaining === 1 ? '' : 's'} for a free taco`;
+  return remaining === 0 ? t.rewardReady : t.rewardRemaining(remaining);
 }
 
 /**
@@ -54,6 +92,7 @@ async function generatePass(customer) {
   const passphrase = process.env.CERT_PASSPHRASE || undefined;
 
   const baseUrl = (process.env.BASE_URL || 'https://yourdomain.com').replace(/\/$/, '');
+  const t       = translationsFor(customer.lang);
 
   // These props are merged / override the values in loyalty.pass/pass.json
   const overrides = {
@@ -63,7 +102,7 @@ async function generatePass(customer) {
     organizationName:    process.env.ORG_NAME     || 'Your Restaurant',
     passTypeIdentifier:  process.env.PASS_TYPE_ID || 'pass.com.yourrestaurant.loyalty',
     teamIdentifier:      process.env.TEAM_ID      || 'YOURTEAMID',
-    description:         'Loyalty Card',
+    description:         t.description,
   };
 
   const pass = await PKPass.from(
@@ -80,23 +119,46 @@ async function generatePass(customer) {
 
   // primaryFields[0] → customer name
   if (pass.primaryFields.length > 0) {
+    pass.primaryFields[0].label = t.customerLabel;
     pass.primaryFields[0].value = customer.name;
   }
 
   // secondaryFields[0] → stamp count, rendered as filled/empty taco emoji
   if (pass.secondaryFields.length > 0) {
+    pass.secondaryFields[0].label = t.stampsLabel;
     pass.secondaryFields[0].value = stampVisual(customer.stamps);
   }
 
   // auxiliaryFields[0] → next reward message
   if (pass.auxiliaryFields.length > 0) {
-    pass.auxiliaryFields[0].value = nextRewardText(customer.stamps);
+    pass.auxiliaryFields[0].label = t.rewardLabel;
+    pass.auxiliaryFields[0].value = nextRewardText(customer.stamps, t);
   }
 
-  // backFields "announcement" → latest broadcast message from /admin/notify
+  // backFields: terms/website/contact labels, and the latest broadcast
+  // message from /admin/notify on the "announcement" field.
+  const terms = pass.backFields.find((f) => f.key === 'terms');
+  if (terms) {
+    terms.label = t.termsLabel;
+    terms.value = t.termsValue;
+  }
+
+  const website = pass.backFields.find((f) => f.key === 'website');
+  if (website) {
+    website.label = t.websiteLabel;
+    website.value = baseUrl;
+  }
+
+  const contact = pass.backFields.find((f) => f.key === 'contact');
+  if (contact) {
+    contact.label = t.contactLabel;
+    contact.value = process.env.CONTACT_EMAIL || 'hola@eltacochingon.com';
+  }
+
   const announcement = pass.backFields.find((f) => f.key === 'announcement');
   if (announcement) {
-    announcement.value = getSetting('announcement') || announcement.value;
+    announcement.label = t.announcementLabel;
+    announcement.value = getSetting('announcement') || t.announcementValue;
   }
 
   // Barcode encodes the serial number so a POS scanner can look up the customer
@@ -104,7 +166,7 @@ async function generatePass(customer) {
     format:          'PKBarcodeFormatQR',
     message:         customer.serial_number,
     messageEncoding: 'iso-8859-1',
-    altText:         'Loyalty Card',
+    altText:         t.barcodeAlt,
   });
 
   return pass.getAsBuffer();
