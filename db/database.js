@@ -197,6 +197,15 @@ function getDevicesForSerial(serialNumber) {
 }
 
 /**
+ * Return the number of distinct devices with at least one registered pass.
+ */
+function getDeviceCount() {
+  return getDb()
+    .prepare('SELECT COUNT(DISTINCT device_library_id) AS count FROM devices')
+    .get().count;
+}
+
+/**
  * Return every unique serial number that has at least one registered device.
  */
 function getRegisteredSerials() {
@@ -249,6 +258,7 @@ module.exports = {
   unregisterDevice,
   getDevicesForSerials,
   getDevicesForSerial,
+  getDeviceCount,
   getRegisteredSerials,
   getSerialsUpdatedSince,
 };

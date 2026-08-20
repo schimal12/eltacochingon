@@ -410,6 +410,7 @@
 <script>
   let adminToken = '';
   let allCustomers = [];
+  let deviceCount = 0;
   let refreshInterval = null;
   let countdownInterval = null;
   let refreshSeconds = 30;
@@ -445,6 +446,7 @@
 
       const data = await resp.json();
       allCustomers = data.customers || [];
+      deviceCount = data.deviceCount || 0;
 
       // Show dashboard
       document.getElementById('authGate').style.display = 'none';
@@ -476,8 +478,7 @@
     document.getElementById('statTotal').textContent   = total;
     document.getElementById('statStamps').textContent  = stamps;
     document.getElementById('statRewards').textContent = rewards;
-    // Devices stat is placeholder — would need a separate endpoint
-    document.getElementById('statDevices').textContent = '–';
+    document.getElementById('statDevices').textContent = deviceCount;
     document.getElementById('deviceCount').textContent = `${total} customer${total !== 1 ? 's' : ''}`;
   }
 

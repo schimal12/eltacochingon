@@ -13,6 +13,7 @@ const {
   getDevicesForSerial,
   getRegisteredSerials,
   getDevicesForSerials,
+  getDeviceCount,
   setSetting,
   touchCustomers,
 } = require('../db/database');
@@ -61,7 +62,7 @@ router.get('/admin/customers', adminAuth, (_req, res) => {
       createdAt:    c.created_at,
       updatedAt:    c.updated_at,
     }));
-    return res.json({ customers });
+    return res.json({ customers, deviceCount: getDeviceCount() });
   } catch (err) {
     console.error('[ADMIN] Error listing customers:', err);
     return res.status(500).json({ error: err.message });
