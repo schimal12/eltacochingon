@@ -206,6 +206,22 @@ function getDeviceCount() {
 }
 
 /**
+ * Return every device row joined with the customer it belongs to, for
+ * debugging registration/push issues from the admin dashboard.
+ */
+function getAllDevicesWithCustomer() {
+  return getDb()
+    .prepare(`
+      SELECT d.device_library_id, d.serial_number, d.push_token, d.created_at,
+             c.name, c.email
+      FROM   devices d
+      JOIN   customers c ON c.serial_number = d.serial_number
+      ORDER  BY d.created_at DESC
+    `)
+    .all();
+}
+
+/**
  * Return every unique serial number that has at least one registered device.
  */
 function getRegisteredSerials() {
@@ -259,6 +275,7 @@ module.exports = {
   getDevicesForSerials,
   getDevicesForSerial,
   getDeviceCount,
+  getAllDevicesWithCustomer,
   getRegisteredSerials,
   getSerialsUpdatedSince,
 };

@@ -14,6 +14,7 @@ const {
   getRegisteredSerials,
   getDevicesForSerials,
   getDeviceCount,
+  getAllDevicesWithCustomer,
   setSetting,
   touchCustomers,
 } = require('../db/database');
@@ -100,9 +101,42 @@ router.get('/admin/customer-by-serial/:serialNumber', adminAuth, (req, res) => {
       email:        customer.email,
       stamps:       customer.stamps,
       serialNumber: customer.serial_number,
+      authToken:    customer.auth_token,
     });
   } catch (err) {
     console.error('[ADMIN] Error looking up customer by serial:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /admin/devices ─────────────────────────────────────────────────────────
+// Debug endpoint: raw device registrations joined with customer info, plus
+// whether the APNs cert files this instance was started with actually exist
+// on disk. Useful for diagnosing "notifications aren't working" without a
+// physical device.
+
+router.get('/admin/devices', adminAuth, (_req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const certCheck = (envVar) => {
+      const p = process.env[envVar];
+      if (!p) return { envVar, set: false };
+      return { envVar, set: true, path: p, exists: fs.existsSync(path.resolve(p)) };
+    };
+
+    return res.json({
+      devices: getAllDevicesWithCustomer(),
+      certs: [
+        certCheck('APN_CERT_PATH'),
+        certCheck('APN_KEY_PATH'),
+        certCheck('CERT_PATH'),
+        certCheck('KEY_PATH'),
+        certCheck('WWDR_PATH'),
+      ],
+    });
+  } catch (err) {
+    console.error('[ADMIN] Error listing devices:', err);
     return res.status(500).json({ error: err.message });
   }
 });
