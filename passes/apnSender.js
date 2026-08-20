@@ -67,33 +67,6 @@ async function sendPassUpdatePush(pushTokens) {
 }
 
 /**
- * Send a visible lock-screen notification to all provided push tokens.
- * These appear as banner notifications on the device.
- *
- * @param {string[]} pushTokens - Array of device push tokens.
- * @param {string}   message    - The notification body text.
- */
-async function sendBroadcastPush(pushTokens, message) {
-  const p = getProvider();
-  if (!p || pushTokens.length === 0) return;
-
-  const note = new apn.Notification();
-  note.topic   = process.env.PASS_TYPE_ID || 'pass.com.yourrestaurant.loyalty';
-  note.alert   = message;
-  note.payload = { aps: { alert: message } };
-
-  const results = await p.send(note, pushTokens);
-
-  if (results.failed && results.failed.length > 0) {
-    results.failed.forEach((f) => {
-      console.error('[APN] Broadcast push failed for token', f.device, ':', f.error || f.response);
-    });
-  }
-
-  return results;
-}
-
-/**
  * Close the APN provider connection (call on graceful shutdown).
  */
 function shutdownProvider() {
@@ -103,4 +76,4 @@ function shutdownProvider() {
   }
 }
 
-module.exports = { sendPassUpdatePush, sendBroadcastPush, shutdownProvider };
+module.exports = { sendPassUpdatePush, shutdownProvider };

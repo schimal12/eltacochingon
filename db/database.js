@@ -37,6 +37,11 @@ function initDatabase() {
       created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(device_library_id, serial_number)
     );
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    );
   `);
 
   return db;
@@ -99,6 +104,34 @@ function addStamp(customerId) {
     WHERE id = ?
   `).run(customerId);
   return db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
+}
+
+// ── Settings queries ──────────────────────────────────────────────────────────
+
+function getSetting(key) {
+  const row = getDb().prepare('SELECT value FROM app_settings WHERE key = ?').get(key);
+  return row ? row.value : null;
+}
+
+function setSetting(key, value) {
+  getDb()
+    .prepare(`
+      INSERT INTO app_settings (key, value) VALUES (@key, @value)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `)
+    .run({ key, value });
+}
+
+/**
+ * Bump updated_at for the given serial numbers so the next pass fetch isn't
+ * short-circuited by the If-Modified-Since check in the wallet web service.
+ */
+function touchCustomers(serialNumbers) {
+  if (!serialNumbers || serialNumbers.length === 0) return;
+  const placeholders = serialNumbers.map(() => '?').join(',');
+  getDb()
+    .prepare(`UPDATE customers SET updated_at = CURRENT_TIMESTAMP WHERE serial_number IN (${placeholders})`)
+    .run(...serialNumbers);
 }
 
 // ── Device queries ────────────────────────────────────────────────────────────
@@ -178,6 +211,10 @@ function getSerialsUpdatedSince(passTypeIdentifier, updatedSince) {
 module.exports = {
   initDatabase,
   getDb,
+  // settings
+  getSetting,
+  setSetting,
+  touchCustomers,
   // customers
   createCustomer,
   getCustomerByEmail,

@@ -3,6 +3,7 @@
 const { PKPass } = require('passkit-generator');
 const fs = require('fs');
 const path = require('path');
+const { getSetting } = require('../db/database');
 
 // passkit-generator v3 requires the model folder to end with .pass
 const TEMPLATE_DIR = path.join(__dirname, 'loyalty.pass');
@@ -29,6 +30,15 @@ function nextRewardText(stamps) {
   const remaining = Math.max(0, 10 - (stamps % 10));
   if (remaining === 0) return 'Collect your free taco!';
   return `${remaining} more stamp${remaining === 1 ? '' : 's'} for a free taco`;
+}
+
+/**
+ * Render the current 10-stamp cycle as filled/empty taco emoji.
+ */
+function stampVisual(stamps) {
+  const cycle  = stamps % 10;
+  const filled = cycle === 0 && stamps > 0 ? 10 : cycle;
+  return '🌮'.repeat(filled) + '◯'.repeat(10 - filled);
 }
 
 /**
@@ -74,14 +84,20 @@ async function generatePass(customer) {
     pass.primaryFields[0].value = customer.name;
   }
 
-  // secondaryFields[0] → stamp count
+  // secondaryFields[0] → stamp count, rendered as filled/empty taco emoji
   if (pass.secondaryFields.length > 0) {
-    pass.secondaryFields[0].value = `${customer.stamps}/10`;
+    pass.secondaryFields[0].value = stampVisual(customer.stamps);
   }
 
   // auxiliaryFields[0] → next reward message
   if (pass.auxiliaryFields.length > 0) {
     pass.auxiliaryFields[0].value = nextRewardText(customer.stamps);
+  }
+
+  // backFields "announcement" → latest broadcast message from /admin/notify
+  const announcement = pass.backFields.find((f) => f.key === 'announcement');
+  if (announcement) {
+    announcement.value = getSetting('announcement') || announcement.value;
   }
 
   // Barcode encodes the serial number so a POS scanner can look up the customer

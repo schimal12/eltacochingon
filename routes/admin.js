@@ -11,8 +11,10 @@ const {
   getDevicesForSerial,
   getRegisteredSerials,
   getDevicesForSerials,
+  setSetting,
+  touchCustomers,
 } = require('../db/database');
-const { sendPassUpdatePush, sendBroadcastPush } = require('../passes/apnSender');
+const { sendPassUpdatePush } = require('../passes/apnSender');
 
 const router = express.Router();
 
@@ -111,10 +113,19 @@ router.post('/admin/notify', adminAuth, async (req, res) => {
       return res.json({ success: true, sent: 0, message: 'No registered devices.' });
     }
 
+    // Store the message so generatePass() can stamp it onto the "announcement"
+    // back field, and bump updated_at so the wallet web service doesn't
+    // short-circuit the refetch with a 304 (see routes/wallet.js).
+    setSetting('announcement', message);
+    touchCustomers(serials);
+
     const devices = getDevicesForSerials(serials);
     const tokens  = [...new Set(devices.map((d) => d.push_token))];
 
-    await sendBroadcastPush(tokens, message);
+    // Wallet passes can't display arbitrary push text — this sends the
+    // standard silent "refetch your pass" push, and Wallet shows the
+    // message itself via the announcement field's changeMessage template.
+    await sendPassUpdatePush(tokens);
     console.log(`[ADMIN] Broadcast push sent to ${tokens.length} device(s): "${message}"`);
 
     return res.json({ success: true, sent: tokens.length });

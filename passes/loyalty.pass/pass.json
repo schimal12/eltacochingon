@@ -48,6 +48,12 @@
         "key": "contact",
         "label": "Contact",
         "value": "loyalty@yourdomain.com"
+      },
+      {
+        "key": "announcement",
+        "label": "Latest Update",
+        "value": "Welcome to our loyalty program!",
+        "changeMessage": "%@"
       }
     ]
   },
