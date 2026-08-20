@@ -98,7 +98,11 @@ async function generatePass(customer) {
   const overrides = {
     serialNumber:        customer.serial_number,
     authenticationToken: customer.auth_token,
-    webServiceURL:       `${baseUrl}/v1`,
+    // Apple's Wallet protocol appends "/v1/devices/..." to webServiceURL
+    // itself -- the "v1" is Apple's own protocol version, not ours to add.
+    // (Confirmed against live device traffic: with "${baseUrl}/v1" here,
+    // real requests came in as "/v1/v1/devices/..." and 404'd.)
+    webServiceURL:       baseUrl,
     organizationName:    process.env.ORG_NAME     || 'Your Restaurant',
     passTypeIdentifier:  process.env.PASS_TYPE_ID || 'pass.com.yourrestaurant.loyalty',
     teamIdentifier:      process.env.TEAM_ID      || 'YOURTEAMID',
