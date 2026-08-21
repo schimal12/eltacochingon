@@ -659,12 +659,16 @@
 
     el.innerHTML = history.map((h) => {
       const date = new Date(h.createdAt).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' });
+      const rewardEscaped = escHtml(h.rewardText).replace(/'/g, "\\'");
       return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">
         <div style="font-size:12px;">
           <strong>${h.stampsRequired} → ${escHtml(h.rewardText)}</strong>
           <span style="color:var(--muted);display:block;font-size:11px;">${date}</span>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="reusePromotion(${h.stampsRequired}, '${escHtml(h.rewardText).replace(/'/g, "\\'")}')">Reutilizar</button>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button class="btn btn-secondary btn-sm" onclick="reusePromotion(${h.stampsRequired}, '${rewardEscaped}')">Reutilizar</button>
+          <button class="btn btn-danger btn-sm" onclick="deletePromotionHistoryEntry(${h.id}, this)">🗑</button>
+        </div>
       </div>`;
     }).join('');
   }
@@ -673,6 +677,24 @@
     document.getElementById('stampsRequiredInput').value = stampsRequired;
     document.getElementById('rewardTextInput').value = rewardText;
     saveSettings();
+  }
+
+  async function deletePromotionHistoryEntry(id, btn) {
+    if (!confirm('¿Eliminar esta promoción del historial? Esto no afecta la promoción actual.')) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+
+    try {
+      const resp = await apiFetch(`/admin/promotion-history/${id}`, { method: 'DELETE' });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Error al eliminar');
+      loadPromotionHistory();
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = '🗑';
+    }
   }
 
   function apiFetch(url, opts = {}) {

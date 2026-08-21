@@ -281,6 +281,19 @@ async function getPromotionHistory(limit = 20) {
 }
 
 /**
+ * Remove one entry from the promotion history log. Purely a log edit --
+ * doesn't touch the current promotion default or any customer's snapshot.
+ * Returns false if no such entry existed.
+ */
+async function deletePromotionHistoryEntry(id) {
+  const { rowCount } = await getPool().query(
+    'DELETE FROM promotion_history WHERE id = $1',
+    [id],
+  );
+  return rowCount > 0;
+}
+
+/**
  * Bump updated_at for the given serial numbers so the next pass fetch isn't
  * short-circuited by the If-Modified-Since check in the wallet web service.
  */
@@ -397,6 +410,7 @@ module.exports = {
   getPromotionDefaults,
   savePromotionDefaults,
   getPromotionHistory,
+  deletePromotionHistoryEntry,
   touchCustomers,
   // customers
   createCustomer,

@@ -20,6 +20,7 @@ const {
   getPromotionDefaults,
   savePromotionDefaults,
   getPromotionHistory,
+  deletePromotionHistoryEntry,
   touchCustomers,
 } = require('../db/database');
 const { sendPassUpdatePush } = require('../passes/apnSender');
@@ -122,6 +123,7 @@ router.get('/admin/promotion-history', adminAuth, async (_req, res) => {
   try {
     const rawHistory = await getPromotionHistory();
     const history = rawHistory.map((h) => ({
+      id:             h.id,
       stampsRequired: h.stamps_required,
       rewardText:     h.reward_text,
       createdAt:      h.created_at,
@@ -129,6 +131,27 @@ router.get('/admin/promotion-history', adminAuth, async (_req, res) => {
     return res.json({ history });
   } catch (err) {
     console.error('[ADMIN] Error reading promotion history:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── DELETE /admin/promotion-history/:id ──────────────────────────────────────────
+// Removes a log entry only -- has no effect on the current promotion default
+// or any customer's already-snapshotted promotion.
+
+router.delete('/admin/promotion-history/:id', adminAuth, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Id inválido' });
+    }
+    const deleted = await deletePromotionHistoryEntry(id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'No se encontró esa entrada del historial' });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[ADMIN] Error deleting promotion history entry:', err);
     return res.status(500).json({ error: err.message });
   }
 });
