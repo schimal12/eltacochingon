@@ -287,6 +287,13 @@ router.post('/admin/stamp/:customerId', adminAuth, async (req, res) => {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
 
+    // Block stamping past a ready-to-redeem reward -- otherwise extra taps
+    // before staff remembers to hit "Canjear" get banked and carry over
+    // after redemption instead of resetting to 0, which reads as a bug.
+    if (customer.stamps - customer.stamps_redeemed >= customer.stamps_required) {
+      return res.status(400).json({ error: 'Este cliente ya tiene una recompensa lista para canjear. Canjéala antes de agregar más sellos.' });
+    }
+
     const updated = await addStamp(customerId);
 
     // Send silent push so Apple Wallet fetches the updated pass

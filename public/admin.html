@@ -761,10 +761,10 @@
         <td data-label="Registro" style="color:var(--muted)">${date}</td>
         <td>
           <div class="row-actions">
-            <button class="btn btn-stamp btn-sm" onclick="addStamp('${c.id}', this)">
-              + Sello
-            </button>
-            ${ready ? `<button class="btn btn-primary btn-sm" onclick="redeemReward('${c.id}', this)">🎁 Canjear</button>` : ''}
+            ${ready
+              ? `<button class="btn btn-primary btn-sm" onclick="redeemReward('${c.id}', this)">🎁 Canjear</button>`
+              : `<button class="btn btn-stamp btn-sm" onclick="addStamp('${c.id}', this)">+ Sello</button>`
+            }
             <button class="btn btn-danger btn-sm" onclick="removeCustomer('${c.id}', '${escHtml(c.name).replace(/'/g, "\\'")}', this)">
               Eliminar
             </button>
