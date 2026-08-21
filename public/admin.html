@@ -349,6 +349,7 @@
     <a class="btn btn-primary btn-sm" id="scanLink" href="#">📷 Escanear Cliente</a>
     <span class="badge" id="deviceCount">0 dispositivos</span>
     <button class="btn btn-secondary btn-sm" id="refreshBtn" onclick="loadCustomers()">↻ Actualizar</button>
+    <button class="btn btn-secondary btn-sm" id="logoutBtn" onclick="logout()">Cerrar sesión</button>
   </div>
 </div>
 
@@ -478,17 +479,52 @@
   let refreshInterval = null;
 
   // ── Auth ────────────────────────────────────────────────────────────────────
+  // The token is kept in localStorage so it survives page reloads (including
+  // Safari silently reloading a backgrounded tab) -- otherwise every reload
+  // wipes the in-memory token and forces re-entry.
+
+  function storedToken() {
+    try { return localStorage.getItem('adminToken') || ''; } catch (_e) { return ''; }
+  }
+
+  function persistToken(token) {
+    try { localStorage.setItem('adminToken', token); } catch (_e) { /* private mode, etc. */ }
+  }
+
+  function clearStoredToken() {
+    try { localStorage.removeItem('adminToken'); } catch (_e) { /* ignore */ }
+  }
 
   function login() {
     const token = document.getElementById('tokenInput').value.trim();
     if (!token) return toast('Ingresa un token', 'error');
     adminToken = token;
+    persistToken(token);
     loadCustomers();
+  }
+
+  function logout() {
+    adminToken = '';
+    clearStoredToken();
+    if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
+    document.getElementById('tokenInput').value = '';
+    document.getElementById('authGate').style.display = 'block';
+    document.getElementById('dashboard').style.display = 'none';
   }
 
   document.getElementById('tokenInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') login();
   });
+
+  // Auto sign-in if a token was saved from a previous visit. Hide the auth
+  // gate optimistically while we confirm the token still works, so a
+  // returning visit doesn't flash the login screen first.
+  const savedToken = storedToken();
+  if (savedToken) {
+    adminToken = savedToken;
+    document.getElementById('authGate').style.display = 'none';
+    loadCustomers();
+  }
 
   // ── Load customers ──────────────────────────────────────────────────────────
 
@@ -499,6 +535,7 @@
         if (resp.status === 401) {
           toast('Token inválido', 'error');
           adminToken = '';
+          clearStoredToken();
           document.getElementById('authGate').style.display = 'block';
           document.getElementById('dashboard').style.display = 'none';
           return;
