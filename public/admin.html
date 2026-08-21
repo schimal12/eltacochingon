@@ -532,7 +532,6 @@
   let adminToken = '';
   let allCustomers = [];
   let deviceCount = 0;
-  let redemptionCount = 0;
   let refreshInterval = null;
 
   // ── Auth ────────────────────────────────────────────────────────────────────
@@ -606,7 +605,6 @@
       const data = await resp.json();
       allCustomers = data.customers || [];
       deviceCount = data.deviceCount || 0;
-      redemptionCount = data.redemptionCount || 0;
 
       // Show dashboard
       document.getElementById('authGate').style.display = 'none';
@@ -756,11 +754,17 @@
   function updateStats() {
     const total      = allCustomers.length;
     const stamps     = allCustomers.reduce((s, c) => s + c.stamps, 0);
+    // Scoped to currently-active customers (same as total/stamps above) --
+    // deleting a customer drops their redemptions from this total too;
+    // restoring them brings it back. Wallet Devices is intentionally NOT
+    // scoped this way -- it only moves on the real register/unregister
+    // webhook, never as a side effect of admin delete/restore.
+    const rewards    = allCustomers.reduce((s, c) => s + (c.rewardsRedeemed || 0), 0);
     const detractors = allCustomers.filter((c) => c.cardRemovedAt).length;
 
     document.getElementById('statTotal').textContent      = total;
     document.getElementById('statStamps').textContent     = stamps;
-    document.getElementById('statRewards').textContent    = redemptionCount;
+    document.getElementById('statRewards').textContent    = rewards;
     document.getElementById('statDevices').textContent    = deviceCount;
     document.getElementById('statDetractors').textContent = detractors;
     document.getElementById('deviceCount').textContent = `${total} cliente${total !== 1 ? 's' : ''}`;

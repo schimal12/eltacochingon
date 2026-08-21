@@ -278,15 +278,6 @@ async function redeemReward(customerId) {
 }
 
 /**
- * Lifetime count of rewards actually given out (vs. just mathematically
- * implied by stamp count), for the admin dashboard stat.
- */
-async function getRedemptionCount() {
-  const { rows } = await getPool().query('SELECT COUNT(*) AS count FROM reward_redemptions');
-  return Number(rows[0].count);
-}
-
-/**
  * Flag a customer as having removed their Wallet pass (a "detractor" signal
  * for the dashboard). Only called once their last registered device is gone.
  */
@@ -525,7 +516,6 @@ module.exports = {
   getAllCustomers,
   addStamp,
   redeemReward,
-  getRedemptionCount,
   deleteCustomer,
   getDeletedCustomers,
   restoreCustomer,

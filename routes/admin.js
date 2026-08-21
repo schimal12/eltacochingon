@@ -9,7 +9,6 @@ const {
   getCustomerBySerial,
   addStamp,
   redeemReward,
-  getRedemptionCount,
   deleteCustomer,
   getDeletedCustomers,
   restoreCustomer,
@@ -78,8 +77,14 @@ router.get('/admin/customers', adminAuth, async (_req, res) => {
       createdAt:      c.created_at,
       updatedAt:      c.updated_at,
     }));
-    const [deviceCount, redemptionCount] = await Promise.all([getDeviceCount(), getRedemptionCount()]);
-    return res.json({ customers, deviceCount, redemptionCount });
+    // Note: deviceCount deliberately stays a raw count of the devices table --
+    // it must only move on the actual Wallet register/unregister webhooks,
+    // never as a side effect of admin soft-delete/restore (unlike the
+    // per-customer reward counts above, which are already scoped to active
+    // customers via getAllCustomers()'s deleted_at filter, and summed
+    // client-side for the "Recompensas Obtenidas" stat).
+    const deviceCount = await getDeviceCount();
+    return res.json({ customers, deviceCount });
   } catch (err) {
     console.error('[ADMIN] Error listing customers:', err);
     return res.status(500).json({ error: err.message });
