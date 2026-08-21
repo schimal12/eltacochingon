@@ -11,18 +11,14 @@
   "backgroundColor": "rgb(247,247,247)",
   "labelColor": "rgb(130,125,120)",
   "storeCard": {
-    "primaryFields": [
-      {
-        "key": "celebration",
-        "value": ""
-      }
-    ],
-    "secondaryFields": [
+    "headerFields": [
       {
         "key": "name",
         "label": "Customer",
         "value": "Guest"
-      },
+      }
+    ],
+    "secondaryFields": [
       {
         "key": "stamps",
         "label": "Stamps",

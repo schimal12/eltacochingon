@@ -161,13 +161,11 @@ async function generatePass(customer) {
   // The getters return live references to the field arrays from pass.json.
   // Mutating the objects in-place is the v3 way of setting field values.
   //
-  // Note: primaryFields renders as large overlay text directly on top of the
-  // strip image, which is why customer name/stamps live in secondaryFields
-  // instead (see git history) -- primaryFields is only used below, and only
-  // for the reward-ready celebration banner.
+  // Name lives in headerFields (small top-corner slot) rather than sharing a
+  // row with the stamps field -- a long taco-emoji string in secondaryFields
+  // was cramped enough to visually overwrite the name next to it.
 
-  // secondaryFields: customer name + stamp count (taco emoji)
-  const nameField = pass.secondaryFields.find((f) => f.key === 'name');
+  const nameField = pass.headerFields.find((f) => f.key === 'name');
   if (nameField) {
     nameField.label = t.customerLabel;
     nameField.value = customer.name;
@@ -175,25 +173,19 @@ async function generatePass(customer) {
 
   const ready = isRewardReady(customer);
 
+  // secondaryFields: taco-dot progress normally, replaced by the celebration
+  // message in the same slot (not a separate overlay) once a reward is ready
+  // -- clears back to dots the moment it's redeemed.
   const stampsField = pass.secondaryFields.find((f) => f.key === 'stamps');
   if (stampsField) {
-    stampsField.label = t.stampsLabel;
-    stampsField.value = stampVisual(customer);
+    stampsField.label = ready ? '' : t.stampsLabel;
+    stampsField.value = ready ? `🌮 ${t.rewardReady(customer.reward_text)}` : stampVisual(customer);
   }
 
   // auxiliaryFields[0] → next reward message
   if (pass.auxiliaryFields.length > 0) {
     pass.auxiliaryFields[0].label = t.rewardLabel;
     pass.auxiliaryFields[0].value = nextRewardText(customer, t);
-  }
-
-  // primaryFields render as large overlay text on top of the strip image
-  // (see the git history on why storeCard normally avoids that slot) --
-  // repurposed here as a celebratory banner, shown only when a reward is
-  // ready so it never collides with the customer's name.
-  const celebration = pass.primaryFields.find((f) => f.key === 'celebration');
-  if (celebration) {
-    celebration.value = ready ? `🌮 ${t.rewardReady(customer.reward_text)}` : '';
   }
 
   // backFields: terms/website/contact/address labels and values.
