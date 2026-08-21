@@ -1,136 +1,153 @@
 # TacoPKPass — Apple Wallet Loyalty Card System
 
-A loyalty stamp card for restaurants. Customers scan a QR code, register, and receive an Apple Wallet card that gets stamped after each purchase. Restaurant owners stamp cards and send push notifications from an admin dashboard.
+A digital stamp card for restaurants, built on Apple Wallet. Customers scan a QR code, register in English or Spanish, and get a loyalty card added to their iPhone. The restaurant owner runs everything else from a Spanish-language admin dashboard: stamping cards, broadcasting notifications, running promotions, and tracking who's dropped off.
+
+Live at **https://eltacochingon.onrender.com**, deployed on [Render](https://render.com).
 
 ---
 
 ## How it works
 
-1. Restaurant displays a QR code (from `/admin/qr`)
-2. Customer scans it → fills in name + email → `.pkpass` downloads to their iPhone → they tap to add it to Apple Wallet
-3. After a purchase, the owner opens the admin panel, finds the customer, and taps **Add Stamp**
-4. Apple Wallet on the customer's phone silently updates the card (stamp count goes up)
-5. Owner can broadcast a message ("Today is taco day!") → all cardholders see a notification
+1. The restaurant prints/displays the QR code shown at the site's root URL (`/`) — it points at `/register`.
+2. A customer scans it, fills in their name and email (in English or Spanish), and downloads a signed `.pkpass` — Apple Wallet opens it and they tap **Add**.
+3. After a purchase, staff opens `/admin`, finds the customer (by search, or by scanning their pass's QR code at `/admin/scan`), and taps **+ Sello**.
+4. Apple Wallet on the customer's phone silently receives a push and re-fetches the card — the stamp count updates within seconds, no app open required.
+5. On reaching the stamp goal, the card shows a "You won X!" banner as large overlay text on the pass, then resets to 0 on their next visit.
+6. The owner can also broadcast a message ("¡Hoy es martes de tacos!") to every cardholder's lock screen at once.
 
 ---
 
-## Prerequisites
+## Features
 
-| Requirement | Why |
+- **Bilingual customer passes** — English/Spanish, auto-detected from the browser and toggleable at registration; every pass field, back-of-card link, and reward message is translated.
+- **Configurable promotions** — the owner sets "Stamps Required" and "Reward" from the admin dashboard. Each customer snapshots the active promotion when they register, so changing it only affects new signups — existing cards keep the deal they signed up under. Full **promotion history** is logged, with one-click reuse of a past promotion.
+- **Soft-delete with 7-day undo** — deleting a customer hides them immediately but keeps them recoverable for 7 days via a "Recently Deleted" panel with a one-click Restore (which reactivates their existing pass instantly, no re-registration needed). A background job permanently purges anything older than 7 days.
+- **Detractor tracking** — if a customer removes the card from their Apple Wallet, it's flagged automatically (a stat card + a badge on their row in the admin table) so the owner can see who's dropped off.
+- **QR scan-to-stamp** — staff can scan a customer's pass (its barcode encodes their serial number) at `/admin/scan` to jump straight to stamping them, instead of searching by name.
+- **Broadcast notifications** — a message typed into the admin dashboard becomes a real lock-screen notification on every registered device.
+- **Back-of-card links** — Instagram, phone number, and a Google Maps link, all owner-configurable via environment variables.
+- **Admin dashboard** — fully in Spanish, mobile-friendly (tested against real iPhone viewports), persists the admin token across reloads (no re-entering it every time you background the tab).
+
+---
+
+## Architecture
+
+| Layer | Technology |
 |---|---|
-| Node.js 18+ | Runtime |
-| Apple Developer account ($99/yr) | Required to sign PKPass files and send push notifications |
-| A public HTTPS domain or ngrok | Apple Wallet must reach your server over HTTPS |
+| Server | Node.js + Express |
+| Database | Render Managed Postgres |
+| Pass generation/signing | [`passkit-generator`](https://github.com/alexandercerutti/passkit-generator) |
+| Push notifications | [`node-apn`](https://github.com/node-apn/node-apn) against Apple's **production** APNs gateway (Wallet pass pushes have no sandbox environment) |
+| QR codes | [`qrcode`](https://github.com/soldair/node-qrcode) |
+| Hosting | Render (web service + managed Postgres) |
 
----
+### Project structure
 
-## Step 1 — Clone and install
-
-```bash
-git clone <your-repo-url>
-cd TacoPKPass
-npm install
+```
+index.js                       App entry point — Express setup, startup, daily purge job
+db/database.js                 All Postgres queries (customers, devices, settings, promotion history)
+routes/register.js             Public landing page (/), registration page & handler (/register)
+routes/wallet.js               Apple Wallet Web Service protocol (/v1/*)
+routes/admin.js                Admin API (customers, stamps, settings, promotions, devices)
+passes/passGenerator.js        Builds and signs the .pkpass for a given customer
+passes/apnSender.js            Sends the silent "your pass changed" push via APNs
+passes/loyalty.pass/           Pass template (pass.json + images)
+public/register.html           Customer-facing registration form (EN/ES)
+public/admin.html              Admin dashboard (Spanish)
+public/scan.html               QR scan-to-stamp page for staff
+certs/                         Apple certificates (gitignored — see certs/README.md)
 ```
 
 ---
 
-## Step 2 — Get your Apple certificates
+## Apple Wallet Web Service protocol
 
-Follow the full guide in [`certs/README.md`](certs/README.md). Summary:
+Implemented in `routes/wallet.js`, under `/v1/*`:
+
+| Endpoint | Called by Wallet when... |
+|---|---|
+| `POST /v1/devices/:deviceLibraryIdentifier/registrations/:passTypeIdentifier/:serialNumber` | The pass is added to a device |
+| `DELETE /v1/devices/:deviceLibraryIdentifier/registrations/:passTypeIdentifier/:serialNumber` | The pass is removed from a device |
+| `GET /v1/devices/:deviceLibraryIdentifier/registrations/:passTypeIdentifier` | Wallet checks which passes changed since a given time |
+| `GET /v1/passes/:passTypeIdentifier/:serialNumber` | Wallet re-fetches the current pass content |
+| `POST /v1/log` | Wallet reports client-side errors (logged, not acted on) |
+
+**Important gotcha, already handled but worth knowing if you touch `passGenerator.js`:** the pass's `webServiceURL` must be the bare base URL, with **no** `/v1` suffix. Apple's Wallet client appends `/v1/devices/...` itself — the `v1` is Apple's own protocol version. Adding `/v1` in `webServiceURL` causes every real request to arrive as `/v1/v1/devices/...`, which silently 404s against these routes. This was debugged by adding request logging and inspecting real device traffic, not by reading Apple's docs — the docs are easy to misread here.
+
+---
+
+## Environment variables
+
+See [`.env.example`](.env.example) for the full list with comments. Summary:
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `BASE_URL` | Yes | Public HTTPS URL of the server. Baked into every generated pass. |
+| `DATABASE_URL` | Yes | Postgres connection string. |
+| `PASS_TYPE_ID` | Yes | From Apple Developer → Identifiers → Pass Type IDs |
+| `TEAM_ID` | Yes | Apple Developer Team ID |
+| `ORG_NAME` | Yes | Restaurant name, shown on the pass and admin dashboard |
+| `CERT_PATH`, `KEY_PATH`, `WWDR_PATH`, `CERT_PASSPHRASE` | Yes | Pass-signing certificate (see below) |
+| `APN_CERT_PATH`, `APN_KEY_PATH` | Yes | Same Pass Type certificate, used again for push notifications |
+| `ADMIN_TOKEN` | Yes | Password for `/admin` — change from the default before going live |
+| `INSTAGRAM_URL`, `CONTACT_PHONE`, `MAPS_URL` | No | Back-of-card links; each has a hardcoded fallback if unset |
+| `PORT` | No | Defaults to 3000 (Render sets this automatically) |
+
+---
+
+## Setup
+
+### 1. Clone and install
+
+```bash
+git clone <this-repo-url>
+cd TacoPKPass
+npm install
+```
+
+### 2. Get your Apple certificates
+
+Full guide in [`certs/README.md`](certs/README.md). Summary:
 
 1. Create a **Pass Type ID** at [developer.apple.com](https://developer.apple.com) → Certificates, Identifiers & Profiles → Identifiers → Pass Type IDs
-2. Generate a CSR in Keychain Access → request certificate from Apple
-3. Download `pass.cer`, import it into Keychain, export as `pass.p12`
-4. Convert to PEM files and place them in the `certs/` directory:
+2. Generate a CSR in Keychain Access → request a certificate from Apple
+3. Download `pass.cer`, import into Keychain, export as `pass.p12`
+4. Convert to PEM and place under `certs/`:
 
 ```bash
 openssl pkcs12 -in pass.p12 -clcerts -nokeys -out certs/signerCert.pem
 openssl pkcs12 -in pass.p12 -nocerts -out certs/signerKey.pem
 
-# Download Apple's WWDR intermediate certificate
 curl -O https://www.apple.com/certificateauthority/AppleWWDRCAG4.cer
 openssl x509 -inform der -in AppleWWDRCAG4.cer -out certs/wwdr.pem
 
-# The pass cert doubles as the APNs cert for wallet pushes
+# The Pass Type certificate doubles as the APNs cert for Wallet pushes —
+# there is no separate app push certificate needed.
 cp certs/signerCert.pem certs/apnCert.pem
 cp certs/signerKey.pem  certs/apnKey.pem
 ```
 
----
+### 3. Set up the database
 
-## Step 3 — Configure environment
+Provision a Postgres instance (Render Managed Postgres, or any Postgres 13+ works for local dev) and set `DATABASE_URL`. The app creates and migrates its own tables on startup — no manual schema step needed.
+
+> **Free Render Postgres expires 30 days after creation.** Upgrade to a paid plan before then, or you'll lose all customer data. This is a Render platform limit, not something the app can work around.
+
+### 4. Configure environment
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and fill in every value:
+Fill in every value — see the [Environment variables](#environment-variables) table above.
 
-```env
-PORT=3000
-
-# Your public server URL — must be HTTPS (Apple Wallet requirement)
-# For local testing use your ngrok URL (see Step 4)
-BASE_URL=https://yourdomain.com
-
-# From Apple Developer portal → Identifiers → Pass Type IDs
-PASS_TYPE_ID=pass.com.yourrestaurant.loyalty
-
-# 10-character Team ID from developer.apple.com → Account → Membership
-TEAM_ID=YOURTEAMID
-
-# Displayed on the card
-ORG_NAME=Your Restaurant
-
-# Certificate paths (relative to project root)
-CERT_PATH=./certs/signerCert.pem
-KEY_PATH=./certs/signerKey.pem
-WWDR_PATH=./certs/wwdr.pem
-CERT_PASSPHRASE=           # leave blank if you exported the key without a passphrase
-
-APN_CERT_PATH=./certs/apnCert.pem
-APN_KEY_PATH=./certs/apnKey.pem
-
-# SQLite database file
-DB_PATH=./loyalty.db
-
-# Password for the admin panel — change this before going live
-ADMIN_TOKEN=changeme123
-```
-
----
-
-## Step 4 — Expose your server (required for Apple Wallet)
-
-Apple Wallet's web service calls only work over **HTTPS**. You have two options:
-
-### Option A — Local testing with ngrok
+### 5. Run locally
 
 ```bash
-# Install ngrok: https://ngrok.com/download
-ngrok http 3000
+npm run dev    # auto-restarts on file changes
+# or
+npm start
 ```
-
-Copy the `https://....ngrok-free.app` URL into your `.env` as `BASE_URL`, then start the server.
-
-> You must restart the server every time your ngrok URL changes, because `BASE_URL` is baked into each generated pass.
-
-### Option B — Production VPS (recommended for real use)
-
-1. Spin up a VPS (DigitalOcean Droplet, AWS EC2, Hetzner, etc.)
-2. Point a domain at it and set up TLS with [Caddy](https://caddyserver.com) or Let's Encrypt + nginx
-3. Set `BASE_URL=https://yourdomain.com` in `.env`
-4. Run with a process manager (see Step 6)
-
----
-
-## Step 5 — Run locally
-
-```bash
-node index.js
-```
-
-You should see:
 
 ```
 [DB] Database initialised
@@ -139,137 +156,36 @@ You should see:
 [SERVER] Admin dashboard   : http://localhost:3000/admin
 ```
 
-Open the admin dashboard: `http://localhost:3000/admin?token=changeme123`
+Apple Wallet's web service calls require **HTTPS**, so a plain `http://localhost` server can't receive device registrations or push updates — use ngrok (or similar) and set `BASE_URL` to the tunnel URL for real end-to-end testing.
 
 ---
 
-## Step 6 — Deploy to production
+## Deployment (Render)
 
-### Install on the server
+This app is deployed as two Render resources in the same project/environment:
 
-```bash
-# SSH into your server
-ssh user@yourdomain.com
+1. **A Node web service**, connected to this GitHub repo with auto-deploy on push to `main`. Build command `npm install`, start command `node index.js`. Certificates are uploaded as Render **Secret Files** (mounted at `/etc/secrets/...`) rather than committed to the repo; point `CERT_PATH` etc. at those paths in the service's environment variables.
+2. **A Render Managed Postgres** instance in the same region, wired to the web service via `DATABASE_URL` (use the **internal** connection string — same-region Render services don't need TLS and avoid the external network hop).
 
-# Install Node.js (if not present)
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# Clone and install
-git clone <your-repo-url> /opt/tacopkpass
-cd /opt/tacopkpass
-npm install --production
-
-# Upload your .env and certs/ via scp (never commit these)
-scp .env user@yourdomain.com:/opt/tacopkpass/.env
-scp -r certs/ user@yourdomain.com:/opt/tacopkpass/certs/
-```
-
-### Run with PM2 (keeps it alive on reboot)
-
-```bash
-npm install -g pm2
-
-cd /opt/tacopkpass
-pm2 start index.js --name tacopkpass
-pm2 save
-pm2 startup   # follow the printed command to enable auto-start
-```
-
-Useful PM2 commands:
-
-```bash
-pm2 logs tacopkpass      # tail logs
-pm2 restart tacopkpass   # restart after config changes
-pm2 stop tacopkpass      # stop
-```
-
-### Reverse proxy with Caddy (easiest HTTPS)
-
-Install Caddy and create `/etc/caddy/Caddyfile`:
-
-```
-yourdomain.com {
-    reverse_proxy localhost:3000
-}
-```
-
-```bash
-sudo systemctl enable caddy
-sudo systemctl start caddy
-```
-
-Caddy handles TLS automatically via Let's Encrypt.
-
----
-
-## Step 7 — Print the QR code
-
-Once the server is live, open the admin panel and go to **QR Code**:
-
-```
-https://yourdomain.com/admin/qr?token=YOUR_ADMIN_TOKEN
-```
-
-Print it and place it at the counter. Customers scan it with their iPhone camera.
+Both can be managed via the [Render CLI](https://render.com/docs/cli) (`render services`, `render postgres`, `render deploys`, `render logs --tail`) if you're scripting deploys or debugging without the dashboard.
 
 ---
 
 ## Admin dashboard
 
-The admin dashboard is a web page built into the app. No separate installation needed — it runs at the same URL as everything else.
+Open `/admin` and enter the `ADMIN_TOKEN` value. The token is remembered on that device (via local storage) — you won't be asked again unless you tap **Cerrar sesión** or the token is rejected.
 
-### Accessing it
+**Estadísticas (stats bar)** — total customers, stamps issued, rewards earned, active Wallet devices, and how many customers have removed the card.
 
-```
-https://yourdomain.com/admin
-```
+**Clientes (customer table)** — search by name/email; each row shows stamp progress, which promotion they're on, join date, and **+ Sello** / **Eliminar** actions. A row gets a 🚫 badge if that customer removed their Wallet pass.
 
-You will see a login screen. Enter the value of `ADMIN_TOKEN` from your `.env` file (default: `changeme123` — change this before going live).
+**Enviar Notificación** — broadcast a message to every registered device's lock screen.
 
-> The dashboard works from any device with a browser — phone, tablet, laptop. You can open it on a phone behind the counter to stamp cards during service.
+**Promoción** — set the current Stamps Required + Reward for new signups, and reuse any past promotion from the history list below it.
 
-### What's on the dashboard
+**Código QR de Registro** — links to the public landing page customers scan to sign up.
 
-**Stats bar (top)**
-Shows total customers, total stamps issued, total rewards earned, and active wallet devices — updates every 30 seconds automatically.
-
-**Customer table (main panel)**
-Lists every registered customer with:
-- Name and email
-- A visual row of 10 dots showing their current stamp progress (filled dots = stamped)
-- The date they joined
-- An **+ Stamp** button
-
-Use the search box to filter by name or email when the list gets long.
-
-**Send Notification (right panel)**
-Type any message and tap **Send to All Devices**. Every customer who has the card in their Apple Wallet receives a lock-screen notification instantly. Examples:
-- `Today is Taco Tuesday! 🌮 Get 2x stamps all day.`
-- `We're closing early tonight at 9pm.`
-- `Happy hour starts in 30 minutes!`
-
-**Registration QR Code (right panel)**
-Opens the printable QR code that customers scan to register. Print it and tape it to the counter or put it in a table stand.
-
----
-
-## Day-to-day operation
-
-### Stamping a card after a purchase
-
-1. Open `https://yourdomain.com/admin` on any device (phone works fine)
-2. Enter your admin token
-3. Find the customer by name or email using the search box
-4. Tap **+ Stamp** — a spinner appears, then a confirmation toast
-5. The customer's Apple Wallet card updates automatically within seconds (Apple Wallet calls your server silently in the background)
-
-### Sending a notification to all cardholders
-
-1. Open the admin dashboard
-2. Type your message in the **Send Notification** panel on the right
-3. Tap **Send to All Devices** — you'll see how many devices received it
-4. All customers with the card in their wallet see a lock-screen notification
+**Eliminados Recientemente** — customers deleted in the last 7 days, restorable with one tap.
 
 ---
 
@@ -277,14 +193,22 @@ Opens the printable QR code that customers scan to register. Print it and tape i
 
 | URL | Description |
 |---|---|
-| `/register` | Customer registration page (QR code target) |
-| `/admin?token=TOKEN` | Admin dashboard |
-| `/admin/qr?token=TOKEN` | Printable QR code |
-| `/admin/customers?token=TOKEN` | Customer list (JSON) |
-| `/admin/stamp/:id` | Add stamp (POST) |
-| `/admin/notify` | Broadcast notification (POST) |
+| `/` | Public landing page with the registration QR code |
+| `/register` | Customer registration form (EN/ES) |
+| `/admin` | Admin dashboard |
+| `/admin/scan` | QR scan-to-stamp page for staff |
+| `/admin/customers` | Customer list (JSON, admin-auth) |
+| `/admin/stamp/:id` | Add a stamp (POST, admin-auth) |
+| `/admin/customer/:id` | Soft-delete a customer (DELETE, admin-auth) |
+| `/admin/customer/:id/restore` | Undo a deletion within 7 days (POST, admin-auth) |
+| `/admin/deleted-customers` | Recently-deleted list (JSON, admin-auth) |
+| `/admin/customer-by-serial/:serialNumber` | Look up a customer by their pass's serial number — used by the scan-to-stamp flow (admin-auth) |
+| `/admin/notify` | Broadcast a notification (POST, admin-auth) |
+| `/admin/settings` | Get/set the current promotion (GET/POST, admin-auth) |
+| `/admin/promotion-history` | Past promotions (JSON, admin-auth) |
+| `/admin/devices` | Debug view of device registrations + cert file status (admin-auth) |
 | `/health` | Server health check |
-| `/v1/...` | Apple Wallet web service (called by iOS automatically) |
+| `/v1/...` | Apple Wallet web service (called automatically by iOS) |
 
 ---
 
@@ -292,8 +216,9 @@ Opens the printable QR code that customers scan to register. Print it and tape i
 
 | Problem | Fix |
 |---|---|
-| Pass won't install on iPhone | Check that `BASE_URL` is HTTPS and the certs are valid |
-| Card doesn't update after stamp | Apple Wallet may take 1–2 minutes; check server logs for APNs errors |
-| "certificate not found" error | Verify the paths in `.env` and that all `.pem` files exist in `certs/` |
-| ngrok URL expired | Restart ngrok, update `BASE_URL` in `.env`, restart the server |
-| Admin page shows 403 | Check that `ADMIN_TOKEN` in `.env` matches the `?token=` in the URL |
+| Pass won't install on iPhone | Check `BASE_URL` is HTTPS and the certs in `certs/` (or Render Secret Files) are valid and not expired |
+| Card doesn't update after stamping | Check `/admin/devices` — if a customer has zero registered devices, their pass never completed Wallet's registration handshake and needs to be removed + re-added |
+| Notifications work but show no message text | The lock-screen banner text only appears via the pass's "Info" back field changing — this is wired up already, but if you added a *new* dynamic field, it needs its own `changeMessage` template |
+| "certificate not found" error | Verify the cert env var paths and that all `.pem` files actually exist there |
+| Admin page shows "No autorizado" | `ADMIN_TOKEN` doesn't match what you entered — check the Render service's environment variables |
+| Database connection errors locally | Check `DATABASE_URL`; if using Render Postgres from outside Render's network, you need the **external** connection string and the machine's IP added to the database's IP allow list |
