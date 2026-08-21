@@ -241,6 +241,7 @@
       <div class="lang-toggle">
         <button type="button" id="langEnBtn" onclick="setLang('en')">EN</button>
         <button type="button" id="langEsBtn" onclick="setLang('es')">ES</button>
+        <button type="button" id="langPtBtn" onclick="setLang('pt')">PT</button>
       </div>
       <div class="logo">🌮</div>
       <h1 id="orgName">Your Restaurant</h1>
@@ -372,10 +373,40 @@
         errGeneric:    'Algo salió mal. Por favor intenta de nuevo.',
         success:       '¡Tu tarjeta de lealtad está lista! Ábrela para agregarla a Apple Wallet.',
       },
+      // European Portuguese (pt-PT) -- "descarregar"/"aplicação"/"consigo"
+      // etc., not the Brazilian "baixar"/"app"/"com você" equivalents.
+      pt: {
+        pageTitle:     'Junte-se ao Nosso Programa de Fidelidade',
+        tagline:       'Programa de Fidelidade',
+        signupHeading: 'Registe-se gratuitamente',
+        signupSub:     'Ganhe um selo a cada visita. Receba um taco grátis após 10 selos!',
+        nameLabel:     'Nome Completo',
+        namePlaceholder:  'Ana Silva',
+        emailLabel:    'Endereço de Email',
+        emailPlaceholder: 'ana@exemplo.com',
+        submitBtn:     'Obter o Meu Cartão',
+        submitBtnBusy: 'A criar o seu cartão…',
+        perk1Title: '10 Selos', perk1Sub: '= 1 Taco Grátis',
+        perk2Title: 'Apple Wallet', perk2Sub: 'Sempre consigo',
+        perk3Title: 'Alertas', perk3Sub: 'Ofertas especiais',
+        walletBadgeText: 'Adicionado à Apple Wallet',
+        footerNote:    'O seu cartão fica na Apple Wallet — não é necessário descarregar nenhuma aplicação.',
+        errName:       'Por favor, indique o seu nome.',
+        errEmail:      'Por favor, indique o seu endereço de email.',
+        errGeneric:    'Ocorreu um erro. Por favor, tente novamente.',
+        success:       'O seu cartão de fidelidade está pronto! Abra-o para o adicionar à Apple Wallet.',
+      },
     };
 
-    let currentLang = (new URLSearchParams(location.search).get('lang') === 'es' || navigator.language.toLowerCase().startsWith('es'))
-      ? 'es' : 'en';
+    let currentLang = 'en';
+    const urlLang = new URLSearchParams(location.search).get('lang');
+    if (['es', 'pt'].includes(urlLang)) {
+      currentLang = urlLang;
+    } else {
+      const browserLang = navigator.language.toLowerCase();
+      if (browserLang.startsWith('es')) currentLang = 'es';
+      else if (browserLang.startsWith('pt')) currentLang = 'pt';
+    }
 
     function applyLang(lang) {
       currentLang = lang;
@@ -400,6 +431,7 @@
       document.getElementById('footerNote').textContent = t.footerNote;
       document.getElementById('langEnBtn').classList.toggle('active', lang === 'en');
       document.getElementById('langEsBtn').classList.toggle('active', lang === 'es');
+      document.getElementById('langPtBtn').classList.toggle('active', lang === 'pt');
     }
 
     function setLang(lang) { applyLang(lang); }

@@ -21,6 +21,7 @@ async function initDatabase() {
       serial_number   TEXT UNIQUE NOT NULL,
       auth_token      TEXT NOT NULL,
       stamps          INTEGER NOT NULL DEFAULT 0,
+      stamps_redeemed INTEGER NOT NULL DEFAULT 0,
       lang            TEXT NOT NULL DEFAULT 'en',
       stamps_required INTEGER NOT NULL DEFAULT 10,
       reward_text     TEXT NOT NULL DEFAULT 'a free taco',
@@ -51,10 +52,20 @@ async function initDatabase() {
       created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS reward_redemptions (
+      id              INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      customer_id     TEXT NOT NULL,
+      customer_name   TEXT NOT NULL,
+      stamps_required INTEGER NOT NULL,
+      reward_text     TEXT NOT NULL,
+      redeemed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS stamps_required INTEGER NOT NULL DEFAULT 10;
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS reward_text TEXT NOT NULL DEFAULT 'a free taco';
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS card_removed_at TIMESTAMPTZ;
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS stamps_redeemed INTEGER NOT NULL DEFAULT 0;
 
     -- Soft-deleted customers may share an email with a new active signup, so
     -- email uniqueness is only enforced among non-deleted rows.
@@ -78,11 +89,13 @@ function getPool() {
 
 // ── Customer queries ──────────────────────────────────────────────────────────
 
+const SUPPORTED_LANGS = ['en', 'es', 'pt'];
+
 async function createCustomer({ id, name, email, serialNumber, authToken, lang, stampsRequired, rewardText }) {
   await getPool().query(
     `INSERT INTO customers (id, name, email, serial_number, auth_token, lang, stamps_required, reward_text)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [id, name, email, serialNumber, authToken, lang === 'es' ? 'es' : 'en', stampsRequired, rewardText],
+    [id, name, email, serialNumber, authToken, SUPPORTED_LANGS.includes(lang) ? lang : 'en', stampsRequired, rewardText],
   );
 }
 
@@ -188,6 +201,56 @@ async function addStamp(customerId) {
   );
   const { rows } = await db.query('SELECT * FROM customers WHERE id = $1', [customerId]);
   return rows[0];
+}
+
+/**
+ * Redeem one reward's worth of stamps: advances stamps_redeemed by
+ * stamps_required (clearing the "ready" state for exactly one reward) and
+ * logs the redemption. Throws if the customer doesn't currently have enough
+ * unredeemed stamps -- callers should check first, but this guards against
+ * races (e.g. two staff members tapping redeem at once).
+ */
+async function redeemReward(customerId) {
+  const db = getPool();
+  const customer = await getCustomerById(customerId);
+  if (!customer) {
+    const err = new Error('Customer not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const progress = customer.stamps - customer.stamps_redeemed;
+  if (progress < customer.stamps_required) {
+    const err = new Error('Not enough unredeemed stamps');
+    err.status = 400;
+    throw err;
+  }
+
+  await db.query(
+    `UPDATE customers
+     SET stamps_redeemed = stamps_redeemed + stamps_required,
+         updated_at      = NOW()
+     WHERE id = $1`,
+    [customerId],
+  );
+
+  await db.query(
+    `INSERT INTO reward_redemptions (customer_id, customer_name, stamps_required, reward_text)
+     VALUES ($1, $2, $3, $4)`,
+    [customer.id, customer.name, customer.stamps_required, customer.reward_text],
+  );
+
+  const { rows } = await db.query('SELECT * FROM customers WHERE id = $1', [customerId]);
+  return rows[0];
+}
+
+/**
+ * Lifetime count of rewards actually given out (vs. just mathematically
+ * implied by stamp count), for the admin dashboard stat.
+ */
+async function getRedemptionCount() {
+  const { rows } = await getPool().query('SELECT COUNT(*) AS count FROM reward_redemptions');
+  return Number(rows[0].count);
 }
 
 /**
@@ -419,6 +482,8 @@ module.exports = {
   getCustomerById,
   getAllCustomers,
   addStamp,
+  redeemReward,
+  getRedemptionCount,
   deleteCustomer,
   getDeletedCustomers,
   restoreCustomer,

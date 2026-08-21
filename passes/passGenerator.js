@@ -58,6 +58,24 @@ const TRANSLATIONS = {
     infoValue:         '¡Bienvenido a nuestro programa de lealtad!',
     barcodeAlt:        'Tarjeta de Lealtad',
   },
+  // European Portuguese (pt-PT) -- distinct from Brazilian Portuguese in
+  // wording ("cartão de fidelidade", not "cartão fidelidade"/pt-BR phrasing).
+  pt: {
+    description:      'Cartão de Fidelidade',
+    customerLabel:     'Cliente',
+    stampsLabel:       'Selos',
+    rewardLabel:       'Próxima Recompensa',
+    rewardReady:       (reward) => `Ganhou ${reward}!`,
+    rewardRemaining:   (n, reward) => `Faltam ${n} selo${n === 1 ? '' : 's'} para ${reward}`,
+    termsLabel:        'Termos e Condições',
+    termsValue:        'Um selo por visita. A recompensa é válida durante 30 dias após ser obtida. Não transferível. A gerência reserva-se o direito de modificar ou descontinuar este programa a qualquer momento.',
+    websiteLabel:      'Website',
+    contactLabel:      'Contacto',
+    addressLabel:      'Localização',
+    infoLabel:         'Informação',
+    infoValue:         'Bem-vindo ao nosso programa de fidelidade!',
+    barcodeAlt:        'Cartão de Fidelidade',
+  },
 };
 
 function translationsFor(lang) {
@@ -65,29 +83,40 @@ function translationsFor(lang) {
 }
 
 /**
- * True once a customer has completed a full stamp cycle and hasn't started
- * the next one yet (e.g. exactly 10, 20, 30... stamps for a 10-stamp card).
+ * Stamps earned toward the next reward that haven't been redeemed yet.
+ * Unlike a simple modulo cycle, this only moves backward when staff
+ * explicitly redeems a reward (see db/database.js:redeemReward) -- so a
+ * completed card keeps showing "ready" until it's actually handed out,
+ * instead of silently clearing itself on the next stamp.
  */
-function isRewardReady(stamps, stampsRequired) {
-  return stamps > 0 && stamps % stampsRequired === 0;
+function progressFor(customer) {
+  return Math.max(0, customer.stamps - customer.stamps_redeemed);
 }
 
 /**
- * Compute a human-friendly "next reward" string from the current stamp count.
+ * True once a customer has enough unredeemed stamps for a reward.
  */
-function nextRewardText(stamps, stampsRequired, rewardText, t) {
-  if (isRewardReady(stamps, stampsRequired)) return t.rewardReady(rewardText);
-  const remaining = stampsRequired - (stamps % stampsRequired);
-  return t.rewardRemaining(remaining, rewardText);
+function isRewardReady(customer) {
+  return progressFor(customer) >= customer.stamps_required;
 }
 
 /**
- * Render the current stamp cycle as filled/empty taco emoji.
+ * Compute a human-friendly "next reward" string from the current progress.
  */
-function stampVisual(stamps, stampsRequired) {
-  const cycle  = stamps % stampsRequired;
-  const filled = cycle === 0 && stamps > 0 ? stampsRequired : cycle;
-  return '🌮'.repeat(filled) + '◯'.repeat(stampsRequired - filled);
+function nextRewardText(customer, t) {
+  const progress = progressFor(customer);
+  if (progress >= customer.stamps_required) return t.rewardReady(customer.reward_text);
+  const remaining = customer.stamps_required - progress;
+  return t.rewardRemaining(remaining, customer.reward_text);
+}
+
+/**
+ * Render the current progress as filled/empty taco emoji (capped at a full
+ * ring even if multiple unredeemed rewards have piled up).
+ */
+function stampVisual(customer) {
+  const filled = Math.min(progressFor(customer), customer.stamps_required);
+  return '🌮'.repeat(filled) + '◯'.repeat(customer.stamps_required - filled);
 }
 
 /**
@@ -144,20 +173,18 @@ async function generatePass(customer) {
     nameField.value = customer.name;
   }
 
-  const stampsRequired = customer.stamps_required;
-  const rewardText     = customer.reward_text;
-  const ready           = isRewardReady(customer.stamps, stampsRequired);
+  const ready = isRewardReady(customer);
 
   const stampsField = pass.secondaryFields.find((f) => f.key === 'stamps');
   if (stampsField) {
     stampsField.label = t.stampsLabel;
-    stampsField.value = stampVisual(customer.stamps, stampsRequired);
+    stampsField.value = stampVisual(customer);
   }
 
   // auxiliaryFields[0] → next reward message
   if (pass.auxiliaryFields.length > 0) {
     pass.auxiliaryFields[0].label = t.rewardLabel;
-    pass.auxiliaryFields[0].value = nextRewardText(customer.stamps, stampsRequired, rewardText, t);
+    pass.auxiliaryFields[0].value = nextRewardText(customer, t);
   }
 
   // primaryFields render as large overlay text on top of the strip image
@@ -166,7 +193,7 @@ async function generatePass(customer) {
   // ready so it never collides with the customer's name.
   const celebration = pass.primaryFields.find((f) => f.key === 'celebration');
   if (celebration) {
-    celebration.value = ready ? `🌮 ${t.rewardReady(rewardText)}` : '';
+    celebration.value = ready ? `🌮 ${t.rewardReady(customer.reward_text)}` : '';
   }
 
   // backFields: terms/website/contact/address labels and values.

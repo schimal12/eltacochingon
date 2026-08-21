@@ -111,7 +111,7 @@ router.post('/register', async (req, res) => {
   try {
     const name  = (req.body.name  || '').trim();
     const email = (req.body.email || '').trim().toLowerCase();
-    const lang  = req.body.lang === 'es' ? 'es' : 'en';
+    const lang  = ['es', 'pt'].includes(req.body.lang) ? req.body.lang : 'en';
 
     if (!name || !email) {
       return res.status(400).json({ error: 'Name and email are required.' });

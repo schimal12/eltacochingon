@@ -197,7 +197,7 @@
     .btn-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
     .btn-danger:hover { background: #fecaca; }
 
-    .row-actions { display: flex; gap: 6px; }
+    .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
     .btn-secondary { background: var(--border); color: var(--text); }
     .btn-secondary:hover { background: #d1d5db; }
@@ -499,6 +499,7 @@
   let adminToken = '';
   let allCustomers = [];
   let deviceCount = 0;
+  let redemptionCount = 0;
   let refreshInterval = null;
 
   // ── Auth ────────────────────────────────────────────────────────────────────
@@ -572,6 +573,7 @@
       const data = await resp.json();
       allCustomers = data.customers || [];
       deviceCount = data.deviceCount || 0;
+      redemptionCount = data.redemptionCount || 0;
 
       // Show dashboard
       document.getElementById('authGate').style.display = 'none';
@@ -709,12 +711,11 @@
   function updateStats() {
     const total      = allCustomers.length;
     const stamps     = allCustomers.reduce((s, c) => s + c.stamps, 0);
-    const rewards    = allCustomers.reduce((s, c) => s + Math.floor(c.stamps / (c.stampsRequired || 10)), 0);
     const detractors = allCustomers.filter((c) => c.cardRemovedAt).length;
 
     document.getElementById('statTotal').textContent      = total;
     document.getElementById('statStamps').textContent     = stamps;
-    document.getElementById('statRewards').textContent    = rewards;
+    document.getElementById('statRewards').textContent    = redemptionCount;
     document.getElementById('statDevices').textContent    = deviceCount;
     document.getElementById('statDetractors').textContent = detractors;
     document.getElementById('deviceCount').textContent = `${total} cliente${total !== 1 ? 's' : ''}`;
@@ -731,11 +732,11 @@
 
     tbody.innerHTML = customers.map((c) => {
       const required = c.stampsRequired || 10;
-      const cycle = c.stamps % required;
-      const ready = cycle === 0 && c.stamps > 0;
-      const displayCount = ready ? required : cycle;
+      const progress = c.stamps - (c.stampsRedeemed || 0);
+      const ready = progress >= required;
+      const displayCount = Math.min(progress, required);
       const dots = Array.from({ length: required }, (_, i) => {
-        const cls = i < cycle ? 'stamp-dot filled' : (i === required - 1 && ready ? 'stamp-dot reward' : 'stamp-dot');
+        const cls = i < displayCount ? 'stamp-dot filled' : (i === required - 1 && ready ? 'stamp-dot reward' : 'stamp-dot');
         return `<span class="${cls}" title="Sello ${i+1}"></span>`;
       }).join('');
 
@@ -763,6 +764,7 @@
             <button class="btn btn-stamp btn-sm" onclick="addStamp('${c.id}', this)">
               + Sello
             </button>
+            ${ready ? `<button class="btn btn-primary btn-sm" onclick="redeemReward('${c.id}', this)">🎁 Canjear</button>` : ''}
             <button class="btn btn-danger btn-sm" onclick="removeCustomer('${c.id}', '${escHtml(c.name).replace(/'/g, "\\'")}', this)">
               Eliminar
             </button>
@@ -805,6 +807,27 @@
     } finally {
       btn.disabled = false;
       btn.textContent = '+ Sello';
+    }
+  }
+
+  // ── Redeem reward ────────────────────────────────────────────────────────────
+
+  async function redeemReward(customerId, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+
+    try {
+      const resp = await apiFetch(`/admin/customer/${customerId}/redeem`, { method: 'POST' });
+      const data = await resp.json();
+
+      if (!resp.ok) throw new Error(data.error || 'Error al canjear');
+
+      toast(data.message || '¡Recompensa canjeada!', 'success');
+      loadCustomers();
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = '🎁 Canjear';
     }
   }
 

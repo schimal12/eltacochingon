@@ -8,6 +8,8 @@ const {
   getCustomerById,
   getCustomerBySerial,
   addStamp,
+  redeemReward,
+  getRedemptionCount,
   deleteCustomer,
   getDeletedCustomers,
   restoreCustomer,
@@ -65,6 +67,7 @@ router.get('/admin/customers', adminAuth, async (_req, res) => {
       name:           c.name,
       email:          c.email,
       stamps:         c.stamps,
+      stampsRedeemed: c.stamps_redeemed,
       stampsRequired: c.stamps_required,
       rewardText:     c.reward_text,
       serialNumber:   c.serial_number,
@@ -72,7 +75,8 @@ router.get('/admin/customers', adminAuth, async (_req, res) => {
       createdAt:      c.created_at,
       updatedAt:      c.updated_at,
     }));
-    return res.json({ customers, deviceCount: await getDeviceCount() });
+    const [deviceCount, redemptionCount] = await Promise.all([getDeviceCount(), getRedemptionCount()]);
+    return res.json({ customers, deviceCount, redemptionCount });
   } catch (err) {
     console.error('[ADMIN] Error listing customers:', err);
     return res.status(500).json({ error: err.message });
@@ -294,8 +298,8 @@ router.post('/admin/stamp/:customerId', adminAuth, async (req, res) => {
     }
 
     const required = updated.stamps_required;
-    const cycle    = updated.stamps % required;
-    const display  = cycle === 0 && updated.stamps > 0 ? required : cycle;
+    const progress = updated.stamps - updated.stamps_redeemed;
+    const display  = Math.min(progress, required);
 
     return res.json({
       success: true,
@@ -304,6 +308,39 @@ router.post('/admin/stamp/:customerId', adminAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('[ADMIN] Error adding stamp:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /admin/customer/:customerId/redeem ──────────────────────────────────────
+// Marks one reward as given out: advances stamps_redeemed and logs it, so the
+// pass stops showing "ready" for that reward and there's a record of when it
+// was actually claimed.
+
+router.post('/admin/customer/:customerId/redeem', adminAuth, async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const updated = await redeemReward(customerId);
+
+    const devices = await getDevicesForSerial(updated.serial_number);
+    if (devices.length > 0) {
+      const tokens = devices.map((d) => d.push_token);
+      await sendPassUpdatePush(tokens);
+      console.log(`[ADMIN] Sent pass-update push after redemption for serial ${updated.serial_number} to ${tokens.length} device(s)`);
+    }
+
+    return res.json({
+      success: true,
+      message: `Recompensa canjeada para ${updated.name}.`,
+    });
+  } catch (err) {
+    if (err.status === 404) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+    if (err.status === 400) {
+      return res.status(400).json({ error: 'Este cliente no tiene suficientes sellos para canjear.' });
+    }
+    console.error('[ADMIN] Error redeeming reward:', err);
     return res.status(500).json({ error: err.message });
   }
 });
