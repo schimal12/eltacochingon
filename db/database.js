@@ -17,13 +17,14 @@ async function initDatabase() {
     CREATE TABLE IF NOT EXISTS customers (
       id              TEXT PRIMARY KEY,
       name            TEXT NOT NULL,
-      email           TEXT UNIQUE NOT NULL,
+      email           TEXT NOT NULL,
       serial_number   TEXT UNIQUE NOT NULL,
       auth_token      TEXT NOT NULL,
       stamps          INTEGER NOT NULL DEFAULT 0,
       lang            TEXT NOT NULL DEFAULT 'en',
       stamps_required INTEGER NOT NULL DEFAULT 10,
       reward_text     TEXT NOT NULL DEFAULT 'a free taco',
+      deleted_at      TIMESTAMPTZ,
       created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -44,6 +45,13 @@ async function initDatabase() {
 
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS stamps_required INTEGER NOT NULL DEFAULT 10;
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS reward_text TEXT NOT NULL DEFAULT 'a free taco';
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+    -- Soft-deleted customers may share an email with a new active signup, so
+    -- email uniqueness is only enforced among non-deleted rows.
+    ALTER TABLE customers DROP CONSTRAINT IF EXISTS customers_email_key;
+    CREATE UNIQUE INDEX IF NOT EXISTS customers_email_active_idx
+      ON customers (email) WHERE deleted_at IS NULL;
   `);
 
   return pool;
@@ -70,40 +78,90 @@ async function createCustomer({ id, name, email, serialNumber, authToken, lang, 
 }
 
 async function getCustomerByEmail(email) {
-  const { rows } = await getPool().query('SELECT * FROM customers WHERE email = $1', [email]);
+  const { rows } = await getPool().query(
+    'SELECT * FROM customers WHERE email = $1 AND deleted_at IS NULL',
+    [email],
+  );
   return rows[0];
 }
 
 async function getCustomerBySerial(serialNumber) {
   const { rows } = await getPool().query(
-    'SELECT * FROM customers WHERE serial_number = $1',
+    'SELECT * FROM customers WHERE serial_number = $1 AND deleted_at IS NULL',
     [serialNumber],
   );
   return rows[0];
 }
 
 async function getCustomerById(id) {
-  const { rows } = await getPool().query('SELECT * FROM customers WHERE id = $1', [id]);
+  const { rows } = await getPool().query(
+    'SELECT * FROM customers WHERE id = $1 AND deleted_at IS NULL',
+    [id],
+  );
   return rows[0];
 }
 
 async function getAllCustomers() {
-  const { rows } = await getPool().query('SELECT * FROM customers ORDER BY created_at DESC');
+  const { rows } = await getPool().query(
+    'SELECT * FROM customers WHERE deleted_at IS NULL ORDER BY created_at DESC',
+  );
   return rows;
 }
 
 /**
- * Delete a customer and any devices registered for their pass.
- * Returns false if the customer did not exist.
+ * Soft-delete a customer -- the row (and their devices) are kept so an
+ * accidental deletion can be undone within RECOVERY_WINDOW_DAYS.
+ * Returns false if no active customer with that id existed.
  */
 async function deleteCustomer(id) {
-  const db = getPool();
-  const customer = await getCustomerById(id);
-  if (!customer) return false;
+  const { rowCount } = await getPool().query(
+    'UPDATE customers SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL',
+    [id],
+  );
+  return rowCount > 0;
+}
 
-  await db.query('DELETE FROM devices WHERE serial_number = $1', [customer.serial_number]);
-  await db.query('DELETE FROM customers WHERE id = $1', [id]);
-  return true;
+const RECOVERY_WINDOW_DAYS = 7;
+
+/**
+ * Customers soft-deleted within the recovery window, most recent first.
+ */
+async function getDeletedCustomers() {
+  const { rows } = await getPool().query(
+    `SELECT * FROM customers
+     WHERE deleted_at IS NOT NULL AND deleted_at > NOW() - INTERVAL '${RECOVERY_WINDOW_DAYS} days'
+     ORDER BY deleted_at DESC`,
+  );
+  return rows;
+}
+
+/**
+ * Undo a soft delete. Returns false if the customer wasn't found deleted
+ * (already restored, permanently purged, or never existed).
+ */
+async function restoreCustomer(id) {
+  const { rowCount } = await getPool().query(
+    'UPDATE customers SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL',
+    [id],
+  );
+  return rowCount > 0;
+}
+
+/**
+ * Permanently remove customers (and their devices) that have been
+ * soft-deleted for longer than the recovery window. Meant to be called on a
+ * recurring schedule. Returns the number of customers purged.
+ */
+async function purgeOldDeletedCustomers() {
+  const db = getPool();
+  const cutoffQuery = `deleted_at IS NOT NULL AND deleted_at <= NOW() - INTERVAL '${RECOVERY_WINDOW_DAYS} days'`;
+
+  await db.query(`
+    DELETE FROM devices
+    WHERE serial_number IN (SELECT serial_number FROM customers WHERE ${cutoffQuery})
+  `);
+  const { rowCount } = await db.query(`DELETE FROM customers WHERE ${cutoffQuery}`);
+  return rowCount;
 }
 
 /**
@@ -278,6 +336,9 @@ module.exports = {
   getAllCustomers,
   addStamp,
   deleteCustomer,
+  getDeletedCustomers,
+  restoreCustomer,
+  purgeOldDeletedCustomers,
   // devices
   registerDevice,
   unregisterDevice,

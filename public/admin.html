@@ -465,6 +465,19 @@
         </div>
       </div>
 
+      <!-- Recently deleted -->
+      <div class="panel">
+        <div class="panel-header"><h2>Eliminados Recientemente</h2></div>
+        <div class="panel-body">
+          <p style="color:var(--muted);font-size:12px;margin-bottom:8px;">
+            Se pueden restaurar hasta 7 días después de eliminarse.
+          </p>
+          <div id="deletedList">
+            <p style="color:var(--muted);font-size:12px;">Cargando…</p>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </main>
@@ -556,6 +569,7 @@
       updateQRLink();
       startAutoRefresh();
       if (!settingsLoaded) loadSettings();
+      loadDeletedCustomers();
     } catch (err) {
       toast('Error al cargar clientes: ' + err.message, 'error');
     }
@@ -715,7 +729,7 @@
   // ── Delete customer ─────────────────────────────────────────────────────────
 
   async function removeCustomer(customerId, name, btn) {
-    if (!confirm(`¿Eliminar la tarjeta de lealtad de ${name}? Esto no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar la tarjeta de lealtad de ${name}? Podrás restaurarla durante 7 días desde "Eliminados Recientemente".`)) return;
 
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>';
@@ -729,10 +743,64 @@
       allCustomers = allCustomers.filter(c => c.id !== customerId);
       filterCustomers();
       updateStats();
+      loadDeletedCustomers();
     } catch (err) {
       toast('Error: ' + err.message, 'error');
       btn.disabled = false;
       btn.textContent = 'Eliminar';
+    }
+  }
+
+  // ── Recently deleted / restore ──────────────────────────────────────────────
+
+  async function loadDeletedCustomers() {
+    try {
+      const resp = await apiFetch('/admin/deleted-customers');
+      if (!resp.ok) throw new Error('Error del servidor');
+      const data = await resp.json();
+      renderDeletedList(data.customers || []);
+    } catch (err) {
+      // Non-critical panel -- fail quietly rather than toast on every refresh.
+      console.error('Failed to load deleted customers:', err);
+    }
+  }
+
+  function renderDeletedList(deleted) {
+    const el = document.getElementById('deletedList');
+    if (deleted.length === 0) {
+      el.innerHTML = '<p style="color:var(--muted);font-size:12px;">No hay clientes eliminados recientemente.</p>';
+      return;
+    }
+
+    el.innerHTML = deleted.map((c) => {
+      const deletedAt = new Date(c.deletedAt);
+      const daysLeft = Math.max(0, 7 - Math.floor((Date.now() - deletedAt.getTime()) / 86400000));
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
+        <div>
+          <strong style="display:block;font-size:13px;">${escHtml(c.name)}</strong>
+          <span style="color:var(--muted);font-size:11px;">${escHtml(c.email)} · quedan ${daysLeft} día${daysLeft === 1 ? '' : 's'}</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="restoreCustomerRow('${c.id}', '${escHtml(c.name).replace(/'/g, "\\'")}', this)">Restaurar</button>
+      </div>`;
+    }).join('');
+  }
+
+  async function restoreCustomerRow(customerId, name, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+
+    try {
+      const resp = await apiFetch(`/admin/customer/${customerId}/restore`, { method: 'POST' });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Error al restaurar');
+
+      toast(`${name} restaurado`, 'success');
+      loadDeletedCustomers();
+      loadCustomers();
+    } catch (err) {
+      toast('Error: ' + err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Restaurar';
     }
   }
 

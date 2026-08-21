@@ -5,7 +5,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 
-const { initDatabase } = require('./db/database');
+const { initDatabase, purgeOldDeletedCustomers } = require('./db/database');
 const registerRoutes = require('./routes/register');
 const walletRoutes = require('./routes/wallet');
 const adminRoutes = require('./routes/admin');
@@ -47,12 +47,30 @@ app.use((err, req, res, _next) => {
   res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
 });
 
+// ── Recently-deleted customer cleanup ────────────────────────────────────────────
+// Runs on startup and once a day after that -- a single instance, so no
+// separate cron service is needed for this.
+
+async function runPurge() {
+  try {
+    const purged = await purgeOldDeletedCustomers();
+    if (purged > 0) {
+      console.log(`[PURGE] Permanently removed ${purged} customer(s) deleted more than 7 days ago`);
+    }
+  } catch (err) {
+    console.error('[PURGE] Error purging old deleted customers:', err);
+  }
+}
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 async function start() {
   try {
     await initDatabase();
     console.log('[DB] Database initialised');
+
+    await runPurge();
+    setInterval(runPurge, 24 * 60 * 60 * 1000);
 
     app.listen(PORT, () => {
       console.log(`[SERVER] Listening on http://localhost:${PORT}`);

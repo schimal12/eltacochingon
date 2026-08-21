@@ -9,6 +9,8 @@ const {
   getCustomerBySerial,
   addStamp,
   deleteCustomer,
+  getDeletedCustomers,
+  restoreCustomer,
   getDevicesForSerial,
   getRegisteredSerials,
   getDevicesForSerials,
@@ -122,6 +124,45 @@ router.delete('/admin/customer/:customerId', adminAuth, async (req, res) => {
     return res.json({ success: true });
   } catch (err) {
     console.error('[ADMIN] Error deleting customer:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /admin/deleted-customers ────────────────────────────────────────────────
+// Customers soft-deleted within the last 7 days, restorable via the endpoint
+// below. Anything older has already been permanently purged.
+
+router.get('/admin/deleted-customers', adminAuth, async (_req, res) => {
+  try {
+    const rawCustomers = await getDeletedCustomers();
+    const customers = rawCustomers.map((c) => ({
+      id:        c.id,
+      name:      c.name,
+      email:     c.email,
+      stamps:    c.stamps,
+      deletedAt: c.deleted_at,
+    }));
+    return res.json({ customers });
+  } catch (err) {
+    console.error('[ADMIN] Error listing deleted customers:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /admin/customer/:customerId/restore ────────────────────────────────────
+
+router.post('/admin/customer/:customerId/restore', adminAuth, async (req, res) => {
+  try {
+    const restored = await restoreCustomer(req.params.customerId);
+    if (!restored) {
+      return res.status(404).json({ error: 'No se encontró un cliente eliminado con ese id (puede que ya haya sido purgado o restaurado)' });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'No se puede restaurar: ya existe un cliente activo con ese correo. Elimina o cambia el correo de ese cliente primero.' });
+    }
+    console.error('[ADMIN] Error restoring customer:', err);
     return res.status(500).json({ error: err.message });
   }
 });
