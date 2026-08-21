@@ -17,6 +17,9 @@ const {
   registerDevice,
   unregisterDevice,
   getSerialsUpdatedSince,
+  getDevicesForSerial,
+  markCardRemoved,
+  clearCardRemoved,
 } = require('../db/database');
 const { generatePass } = require('../passes/passGenerator');
 
@@ -86,6 +89,9 @@ router.post(
         serialNumber,
       });
 
+      // They're back -- no longer a "detractor" if they were flagged as one.
+      await clearCardRemoved(serialNumber);
+
       // 201 if newly registered, 200 if updated
       return res.status(201).send();
     } catch (err) {
@@ -106,6 +112,14 @@ router.delete(
       const { deviceLibraryIdentifier, serialNumber } = req.params;
 
       await unregisterDevice({ deviceLibraryId: deviceLibraryIdentifier, serialNumber });
+
+      // Only flag them as a detractor once they've removed their *last*
+      // device -- if they still have it on another device, they kept it.
+      const remaining = await getDevicesForSerial(serialNumber);
+      if (remaining.length === 0) {
+        await markCardRemoved(serialNumber);
+        console.log(`[WALLET] Card removed for serial ${serialNumber}`);
+      }
 
       return res.status(200).send();
     } catch (err) {

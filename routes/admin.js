@@ -65,6 +65,7 @@ router.get('/admin/customers', adminAuth, async (_req, res) => {
       stampsRequired: c.stamps_required,
       rewardText:     c.reward_text,
       serialNumber:   c.serial_number,
+      cardRemovedAt:  c.card_removed_at,
       createdAt:      c.created_at,
       updatedAt:      c.updated_at,
     }));

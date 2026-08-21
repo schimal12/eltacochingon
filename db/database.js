@@ -25,6 +25,7 @@ async function initDatabase() {
       stamps_required INTEGER NOT NULL DEFAULT 10,
       reward_text     TEXT NOT NULL DEFAULT 'a free taco',
       deleted_at      TIMESTAMPTZ,
+      card_removed_at TIMESTAMPTZ,
       created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -46,6 +47,7 @@ async function initDatabase() {
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS stamps_required INTEGER NOT NULL DEFAULT 10;
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS reward_text TEXT NOT NULL DEFAULT 'a free taco';
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS card_removed_at TIMESTAMPTZ;
 
     -- Soft-deleted customers may share an email with a new active signup, so
     -- email uniqueness is only enforced among non-deleted rows.
@@ -179,6 +181,28 @@ async function addStamp(customerId) {
   );
   const { rows } = await db.query('SELECT * FROM customers WHERE id = $1', [customerId]);
   return rows[0];
+}
+
+/**
+ * Flag a customer as having removed their Wallet pass (a "detractor" signal
+ * for the dashboard). Only called once their last registered device is gone.
+ */
+async function markCardRemoved(serialNumber) {
+  await getPool().query(
+    'UPDATE customers SET card_removed_at = NOW() WHERE serial_number = $1 AND deleted_at IS NULL',
+    [serialNumber],
+  );
+}
+
+/**
+ * Clear the "card removed" flag -- called when a device re-registers for the
+ * pass, meaning the customer added it back.
+ */
+async function clearCardRemoved(serialNumber) {
+  await getPool().query(
+    'UPDATE customers SET card_removed_at = NULL WHERE serial_number = $1 AND card_removed_at IS NOT NULL',
+    [serialNumber],
+  );
 }
 
 // ── Settings queries ──────────────────────────────────────────────────────────
@@ -339,6 +363,8 @@ module.exports = {
   getDeletedCustomers,
   restoreCustomer,
   purgeOldDeletedCustomers,
+  markCardRemoved,
+  clearCardRemoved,
   // devices
   registerDevice,
   unregisterDevice,

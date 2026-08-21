@@ -217,7 +217,7 @@
       padding: 7px 11px;
       border: 1.5px solid var(--border);
       border-radius: 6px;
-      font-size: 13px;
+      font-size: 16px;
     }
 
     .search-row input:focus { outline: none; border-color: var(--brand); }
@@ -230,7 +230,7 @@
       padding: 10px 12px;
       border: 1.5px solid var(--border);
       border-radius: 8px;
-      font-size: 13px;
+      font-size: 16px;
       resize: vertical;
       min-height: 90px;
       font-family: inherit;
@@ -248,7 +248,7 @@
       padding: 10px 12px;
       border: 1.5px solid var(--border);
       border-radius: 8px;
-      font-size: 14px;
+      font-size: 16px;
     }
 
     input:focus { outline: none; border-color: var(--brand); }
@@ -345,7 +345,7 @@
 
 <div class="topbar">
   <h1>🌮 Administración de Lealtad</h1>
-  <div class="right">
+  <div class="right" id="topbarActions" style="display:none;">
     <a class="btn btn-primary btn-sm" id="scanLink" href="#">📷 Escanear Cliente</a>
     <span class="badge" id="deviceCount">0 dispositivos</span>
     <button class="btn btn-secondary btn-sm" id="refreshBtn" onclick="loadCustomers()">↻ Actualizar</button>
@@ -384,6 +384,10 @@
     <div class="stat-card">
       <div class="value" id="statDevices">–</div>
       <div class="label">Dispositivos Wallet</div>
+    </div>
+    <div class="stat-card">
+      <div class="value" id="statDetractors" style="color:#991b1b;">–</div>
+      <div class="label">Eliminaron la Tarjeta</div>
     </div>
   </div>
 
@@ -523,6 +527,7 @@
     document.getElementById('tokenInput').value = '';
     document.getElementById('authGate').style.display = 'block';
     document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('topbarActions').style.display = 'none';
   }
 
   document.getElementById('tokenInput').addEventListener('keydown', (e) => {
@@ -536,6 +541,7 @@
   if (savedToken) {
     adminToken = savedToken;
     document.getElementById('authGate').style.display = 'none';
+    document.getElementById('topbarActions').style.display = 'flex';
     loadCustomers();
   }
 
@@ -551,6 +557,7 @@
           clearStoredToken();
           document.getElementById('authGate').style.display = 'block';
           document.getElementById('dashboard').style.display = 'none';
+          document.getElementById('topbarActions').style.display = 'none';
           return;
         }
         throw new Error('Error del servidor');
@@ -563,6 +570,7 @@
       // Show dashboard
       document.getElementById('authGate').style.display = 'none';
       document.getElementById('dashboard').style.display = 'block';
+      document.getElementById('topbarActions').style.display = 'flex';
 
       updateStats();
       renderTable(allCustomers);
@@ -631,14 +639,16 @@
   // ── Stats ───────────────────────────────────────────────────────────────────
 
   function updateStats() {
-    const total   = allCustomers.length;
-    const stamps  = allCustomers.reduce((s, c) => s + c.stamps, 0);
-    const rewards = allCustomers.reduce((s, c) => s + Math.floor(c.stamps / (c.stampsRequired || 10)), 0);
+    const total      = allCustomers.length;
+    const stamps     = allCustomers.reduce((s, c) => s + c.stamps, 0);
+    const rewards    = allCustomers.reduce((s, c) => s + Math.floor(c.stamps / (c.stampsRequired || 10)), 0);
+    const detractors = allCustomers.filter((c) => c.cardRemovedAt).length;
 
-    document.getElementById('statTotal').textContent   = total;
-    document.getElementById('statStamps').textContent  = stamps;
-    document.getElementById('statRewards').textContent = rewards;
-    document.getElementById('statDevices').textContent = deviceCount;
+    document.getElementById('statTotal').textContent      = total;
+    document.getElementById('statStamps').textContent     = stamps;
+    document.getElementById('statRewards').textContent    = rewards;
+    document.getElementById('statDevices').textContent    = deviceCount;
+    document.getElementById('statDetractors').textContent = detractors;
     document.getElementById('deviceCount').textContent = `${total} cliente${total !== 1 ? 's' : ''}`;
   }
 
@@ -663,9 +673,13 @@
 
       const date = new Date(c.createdAt).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' });
 
+      const detractorBadge = c.cardRemovedAt
+        ? '<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;background:#fee2e2;color:#991b1b;font-size:10px;font-weight:700;vertical-align:middle;">🚫 Eliminó la tarjeta</span>'
+        : '';
+
       return `<tr>
         <td class="name-cell">
-          <strong>${escHtml(c.name)}</strong>
+          <strong>${escHtml(c.name)}${detractorBadge}</strong>
           <span>${escHtml(c.email)}</span>
         </td>
         <td data-label="Sellos">
