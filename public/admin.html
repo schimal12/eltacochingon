@@ -418,6 +418,26 @@
           </tbody>
         </table>
       </div>
+
+      <details id="cardRemovedSection" style="border-top:1px solid var(--border); display:none;">
+        <summary style="cursor:pointer; padding:10px 18px; font-size:12px; font-weight:700; color:var(--muted);">
+          🚫 Tarjeta Eliminada (<span id="cardRemovedCount">0</span>)
+        </summary>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Sellos</th>
+                <th>Promoción</th>
+                <th>Registro</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="cardRemovedTable"></tbody>
+          </table>
+        </div>
+      </details>
     </div>
 
     <!-- Side panels -->
@@ -746,32 +766,29 @@
 
   // ── Table ───────────────────────────────────────────────────────────────────
 
-  function renderTable(customers) {
-    const tbody = document.getElementById('customerTable');
-    if (customers.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Aún no hay clientes. ¡Comparte el enlace de registro!</td></tr>';
-      return;
-    }
+  function buildCustomerRow(c, { cardRemovedSection }) {
+    const required = c.stampsRequired || 10;
+    const progress = c.stamps - (c.stampsRedeemed || 0);
+    const ready = progress >= required;
+    const displayCount = Math.min(progress, required);
+    const dots = Array.from({ length: required }, (_, i) => {
+      const cls = i < displayCount ? 'stamp-dot filled' : (i === required - 1 && ready ? 'stamp-dot reward' : 'stamp-dot');
+      return `<span class="${cls}" title="Sello ${i+1}"></span>`;
+    }).join('');
 
-    tbody.innerHTML = customers.map((c) => {
-      const required = c.stampsRequired || 10;
-      const progress = c.stamps - (c.stampsRedeemed || 0);
-      const ready = progress >= required;
-      const displayCount = Math.min(progress, required);
-      const dots = Array.from({ length: required }, (_, i) => {
-        const cls = i < displayCount ? 'stamp-dot filled' : (i === required - 1 && ready ? 'stamp-dot reward' : 'stamp-dot');
-        return `<span class="${cls}" title="Sello ${i+1}"></span>`;
-      }).join('');
+    const date = new Date(c.createdAt).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' });
 
-      const date = new Date(c.createdAt).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' });
+    // Stamping requires an active Wallet registration -- a customer who
+    // removed their card needs a new one (same stamps carry over
+    // automatically once they re-register with the same email) before they
+    // can be stamped again.
+    const stampOrRedeemBtn = ready
+      ? `<button class="btn btn-primary btn-sm" onclick="redeemReward('${c.id}', this)">🎁 Canjear</button>`
+      : (cardRemovedSection ? '' : `<button class="btn btn-stamp btn-sm" onclick="addStamp('${c.id}', this)">+ Sello</button>`);
 
-      const detractorBadge = c.cardRemovedAt
-        ? '<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;background:#fee2e2;color:#991b1b;font-size:10px;font-weight:700;vertical-align:middle;">🚫 Eliminó la tarjeta</span>'
-        : '';
-
-      return `<tr>
+    return `<tr>
         <td class="name-cell">
-          <strong>${escHtml(c.name)}${detractorBadge}</strong>
+          <strong>${escHtml(c.name)}</strong>
           <span>${escHtml(c.email)}</span>
         </td>
         <td data-label="Sellos">
@@ -784,17 +801,29 @@
         <td data-label="Registro" style="color:var(--muted)">${date}</td>
         <td>
           <div class="row-actions">
-            ${ready
-              ? `<button class="btn btn-primary btn-sm" onclick="redeemReward('${c.id}', this)">🎁 Canjear</button>`
-              : `<button class="btn btn-stamp btn-sm" onclick="addStamp('${c.id}', this)">+ Sello</button>`
-            }
+            ${stampOrRedeemBtn}
             <button class="btn btn-danger btn-sm" onclick="removeCustomer('${c.id}', '${escHtml(c.name).replace(/'/g, "\\'")}', this)">
               Eliminar
             </button>
           </div>
         </td>
       </tr>`;
-    }).join('');
+  }
+
+  function renderTable(customers) {
+    const active = customers.filter((c) => !c.cardRemovedAt);
+    const cardRemoved = customers.filter((c) => c.cardRemovedAt);
+
+    const tbody = document.getElementById('customerTable');
+    tbody.innerHTML = active.length === 0
+      ? '<tr><td colspan="5" class="empty-state">Aún no hay clientes. ¡Comparte el enlace de registro!</td></tr>'
+      : active.map((c) => buildCustomerRow(c, { cardRemovedSection: false })).join('');
+
+    const section = document.getElementById('cardRemovedSection');
+    section.style.display = cardRemoved.length > 0 ? 'block' : 'none';
+    document.getElementById('cardRemovedCount').textContent = cardRemoved.length;
+    document.getElementById('cardRemovedTable').innerHTML =
+      cardRemoved.map((c) => buildCustomerRow(c, { cardRemovedSection: true })).join('');
   }
 
   function filterCustomers() {

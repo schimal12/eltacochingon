@@ -300,6 +300,13 @@ router.post('/admin/stamp/:customerId', adminAuth, async (req, res) => {
       return res.status(400).json({ error: 'Este cliente ya tiene una recompensa lista para canjear. Canjéala antes de agregar más sellos.' });
     }
 
+    // Can't push a stamp update to a pass the customer removed from Wallet --
+    // they need to get a new one first (same customer record, same stamps,
+    // just re-registers a device once they re-add it).
+    if (customer.card_removed_at) {
+      return res.status(400).json({ error: 'Este cliente eliminó su tarjeta de Wallet. Debe generar una tarjeta nueva antes de agregar sellos.' });
+    }
+
     const updated = await addStamp(customerId);
 
     // Send silent push so Apple Wallet fetches the updated pass
