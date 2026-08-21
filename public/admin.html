@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Loyalty Admin Dashboard</title>
+  <title>Panel de Administración de Lealtad</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -344,23 +344,23 @@
 <body>
 
 <div class="topbar">
-  <h1>🌮 Loyalty Admin</h1>
+  <h1>🌮 Administración de Lealtad</h1>
   <div class="right">
-    <a class="btn btn-primary btn-sm" id="scanLink" href="#">📷 Scan Customer</a>
-    <span class="badge" id="deviceCount">0 devices</span>
-    <button class="btn btn-secondary btn-sm" id="refreshBtn" onclick="loadCustomers()">↻ Refresh</button>
+    <a class="btn btn-primary btn-sm" id="scanLink" href="#">📷 Escanear Cliente</a>
+    <span class="badge" id="deviceCount">0 dispositivos</span>
+    <button class="btn btn-secondary btn-sm" id="refreshBtn" onclick="loadCustomers()">↻ Actualizar</button>
   </div>
 </div>
 
 <!-- Auth Gate -->
 <div id="authGate">
-  <h2>Admin Login</h2>
-  <p>Enter your admin token to continue.</p>
+  <h2>Iniciar Sesión</h2>
+  <p>Ingresa tu token de administrador para continuar.</p>
   <div class="form-group">
-    <label for="tokenInput">Admin Token</label>
+    <label for="tokenInput">Token de Administrador</label>
     <input type="password" id="tokenInput" placeholder="changeme123" autocomplete="current-password">
   </div>
-  <button class="btn btn-primary" style="width:100%" onclick="login()">Sign In</button>
+  <button class="btn btn-primary" style="width:100%" onclick="login()">Iniciar Sesión</button>
 </div>
 
 <!-- Dashboard -->
@@ -370,19 +370,19 @@
   <div class="stats">
     <div class="stat-card">
       <div class="value" id="statTotal">–</div>
-      <div class="label">Total Customers</div>
+      <div class="label">Clientes Totales</div>
     </div>
     <div class="stat-card">
       <div class="value" id="statStamps">–</div>
-      <div class="label">Stamps Issued</div>
+      <div class="label">Sellos Emitidos</div>
     </div>
     <div class="stat-card">
       <div class="value" id="statRewards">–</div>
-      <div class="label">Rewards Earned</div>
+      <div class="label">Recompensas Obtenidas</div>
     </div>
     <div class="stat-card">
       <div class="value" id="statDevices">–</div>
-      <div class="label">Wallet Devices</div>
+      <div class="label">Dispositivos Wallet</div>
     </div>
   </div>
 
@@ -391,25 +391,25 @@
     <!-- Customer table -->
     <div class="panel">
       <div class="panel-header">
-        <h2>Customers</h2>
-        <a href="/register" target="_blank" class="btn btn-secondary btn-sm">+ Register Link</a>
+        <h2>Clientes</h2>
+        <a href="/register" target="_blank" class="btn btn-secondary btn-sm">+ Enlace de Registro</a>
       </div>
       <div class="search-row">
-        <input type="text" id="searchInput" placeholder="Search by name or email…" oninput="filterCustomers()">
+        <input type="text" id="searchInput" placeholder="Buscar por nombre o correo…" oninput="filterCustomers()">
       </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Customer</th>
-              <th>Stamps</th>
-              <th>Promo</th>
-              <th>Joined</th>
+              <th>Cliente</th>
+              <th>Sellos</th>
+              <th>Promoción</th>
+              <th>Registro</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="customerTable">
-            <tr><td colspan="5" class="empty-state">Loading…</td></tr>
+            <tr><td colspan="5" class="empty-state">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -420,47 +420,47 @@
 
       <!-- Broadcast notification -->
       <div class="panel">
-        <div class="panel-header"><h2>Send Notification</h2></div>
+        <div class="panel-header"><h2>Enviar Notificación</h2></div>
         <div class="panel-body">
           <p style="color:var(--muted);font-size:12px;margin-bottom:12px;">
-            Sends a lock-screen notification to all registered Wallet devices.
+            Envía una notificación de pantalla de bloqueo a todos los dispositivos Wallet registrados.
           </p>
           <div class="notify-form">
-            <textarea id="notifyMsg" placeholder="Today is Taco Tuesday! 🌮 Get 2x stamps all day."></textarea>
-            <button class="btn btn-primary" id="notifyBtn" onclick="sendNotification()">Send to All Devices</button>
+            <textarea id="notifyMsg" placeholder="¡Hoy es Martes de Tacos! 🌮 Obtén el doble de sellos todo el día."></textarea>
+            <button class="btn btn-primary" id="notifyBtn" onclick="sendNotification()">Enviar a Todos los Dispositivos</button>
           </div>
         </div>
       </div>
 
       <!-- Promotion settings -->
       <div class="panel">
-        <div class="panel-header"><h2>Promotion</h2></div>
+        <div class="panel-header"><h2>Promoción</h2></div>
         <div class="panel-body">
           <p style="color:var(--muted);font-size:12px;margin-bottom:12px;">
-            Applies to new sign-ups only — existing cards keep the deal they signed up under.
+            Aplica solo a los nuevos registros — las tarjetas existentes conservan la promoción con la que se registraron.
           </p>
           <div class="notify-form">
             <div class="form-group" style="margin-bottom:0;">
-              <label for="stampsRequiredInput">Stamps Required</label>
+              <label for="stampsRequiredInput">Sellos Requeridos</label>
               <input type="text" inputmode="numeric" id="stampsRequiredInput" placeholder="10">
             </div>
             <div class="form-group" style="margin-bottom:0;">
-              <label for="rewardTextInput">Reward</label>
-              <input type="text" id="rewardTextInput" placeholder="a free taco">
+              <label for="rewardTextInput">Recompensa</label>
+              <input type="text" id="rewardTextInput" placeholder="un taco gratis">
             </div>
-            <button class="btn btn-primary" id="settingsBtn" onclick="saveSettings()">Save Promotion</button>
+            <button class="btn btn-primary" id="settingsBtn" onclick="saveSettings()">Guardar Promoción</button>
           </div>
         </div>
       </div>
 
       <!-- QR Code -->
       <div class="panel">
-        <div class="panel-header"><h2>Registration QR Code</h2></div>
+        <div class="panel-header"><h2>Código QR de Registro</h2></div>
         <div class="panel-body">
           <p style="color:var(--muted);font-size:12px;margin-bottom:8px;">
-            Print or display this at your counter so customers can sign up.
+            Imprime o muestra esto en tu mostrador para que los clientes puedan registrarse.
           </p>
-          <a href="/" id="qrLink" class="qr-link" target="_blank">📷 View QR Code</a>
+          <a href="/" id="qrLink" class="qr-link" target="_blank">📷 Ver Código QR</a>
         </div>
       </div>
 
@@ -481,7 +481,7 @@
 
   function login() {
     const token = document.getElementById('tokenInput').value.trim();
-    if (!token) return toast('Enter a token', 'error');
+    if (!token) return toast('Ingresa un token', 'error');
     adminToken = token;
     loadCustomers();
   }
@@ -497,13 +497,13 @@
       const resp = await apiFetch('/admin/customers');
       if (!resp.ok) {
         if (resp.status === 401) {
-          toast('Invalid token', 'error');
+          toast('Token inválido', 'error');
           adminToken = '';
           document.getElementById('authGate').style.display = 'block';
           document.getElementById('dashboard').style.display = 'none';
           return;
         }
-        throw new Error('Server error');
+        throw new Error('Error del servidor');
       }
 
       const data = await resp.json();
@@ -520,7 +520,7 @@
       startAutoRefresh();
       if (!settingsLoaded) loadSettings();
     } catch (err) {
-      toast('Failed to load customers: ' + err.message, 'error');
+      toast('Error al cargar clientes: ' + err.message, 'error');
     }
   }
 
@@ -531,13 +531,13 @@
   async function loadSettings() {
     try {
       const resp = await apiFetch('/admin/settings');
-      if (!resp.ok) throw new Error('Server error');
+      if (!resp.ok) throw new Error('Error del servidor');
       const data = await resp.json();
       document.getElementById('stampsRequiredInput').value = data.stampsRequired;
       document.getElementById('rewardTextInput').value = data.rewardText;
       settingsLoaded = true;
     } catch (err) {
-      toast('Failed to load promotion settings: ' + err.message, 'error');
+      toast('Error al cargar la promoción: ' + err.message, 'error');
     }
   }
 
@@ -546,9 +546,9 @@
     const rewardText = document.getElementById('rewardTextInput').value.trim();
 
     if (!Number.isInteger(stampsRequired) || stampsRequired < 1) {
-      return toast('Enter a valid stamp count', 'error');
+      return toast('Ingresa un número de sellos válido', 'error');
     }
-    if (!rewardText) return toast('Enter a reward description', 'error');
+    if (!rewardText) return toast('Ingresa una descripción de la recompensa', 'error');
 
     const btn = document.getElementById('settingsBtn');
     btn.disabled = true;
@@ -560,13 +560,13 @@
         body: JSON.stringify({ stampsRequired, rewardText }),
       });
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Failed');
-      toast('Promotion saved — applies to new sign-ups', 'success');
+      if (!resp.ok) throw new Error(data.error || 'Error al guardar');
+      toast('Promoción guardada — aplica a los nuevos registros', 'success');
     } catch (err) {
       toast('Error: ' + err.message, 'error');
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Save Promotion';
+      btn.textContent = 'Guardar Promoción';
     }
   }
 
@@ -588,7 +588,7 @@
     document.getElementById('statStamps').textContent  = stamps;
     document.getElementById('statRewards').textContent = rewards;
     document.getElementById('statDevices').textContent = deviceCount;
-    document.getElementById('deviceCount').textContent = `${total} customer${total !== 1 ? 's' : ''}`;
+    document.getElementById('deviceCount').textContent = `${total} cliente${total !== 1 ? 's' : ''}`;
   }
 
   // ── Table ───────────────────────────────────────────────────────────────────
@@ -596,7 +596,7 @@
   function renderTable(customers) {
     const tbody = document.getElementById('customerTable');
     if (customers.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No customers yet. Share the registration link!</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Aún no hay clientes. ¡Comparte el enlace de registro!</td></tr>';
       return;
     }
 
@@ -607,31 +607,31 @@
       const displayCount = ready ? required : cycle;
       const dots = Array.from({ length: required }, (_, i) => {
         const cls = i < cycle ? 'stamp-dot filled' : (i === required - 1 && ready ? 'stamp-dot reward' : 'stamp-dot');
-        return `<span class="${cls}" title="Stamp ${i+1}"></span>`;
+        return `<span class="${cls}" title="Sello ${i+1}"></span>`;
       }).join('');
 
-      const date = new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const date = new Date(c.createdAt).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' });
 
       return `<tr>
         <td class="name-cell">
           <strong>${escHtml(c.name)}</strong>
           <span>${escHtml(c.email)}</span>
         </td>
-        <td data-label="Stamps">
+        <td data-label="Sellos">
           <div class="stamp-bar">
             ${dots}
             <span class="stamp-count">${displayCount}/${required}</span>
           </div>
         </td>
-        <td data-label="Promo" style="color:var(--muted);font-size:12px;">${required} → ${escHtml(c.rewardText || 'a free taco')}</td>
-        <td data-label="Joined" style="color:var(--muted)">${date}</td>
+        <td data-label="Promoción" style="color:var(--muted);font-size:12px;">${required} → ${escHtml(c.rewardText || 'un taco gratis')}</td>
+        <td data-label="Registro" style="color:var(--muted)">${date}</td>
         <td>
           <div class="row-actions">
             <button class="btn btn-stamp btn-sm" onclick="addStamp('${c.id}', this)">
-              + Stamp
+              + Sello
             </button>
             <button class="btn btn-danger btn-sm" onclick="removeCustomer('${c.id}', '${escHtml(c.name).replace(/'/g, "\\'")}', this)">
-              Delete
+              Eliminar
             </button>
           </div>
         </td>
@@ -657,9 +657,9 @@
       const resp = await apiFetch(`/admin/stamp/${customerId}`, { method: 'POST' });
       const data = await resp.json();
 
-      if (!resp.ok) throw new Error(data.error || 'Failed');
+      if (!resp.ok) throw new Error(data.error || 'Error al agregar sello');
 
-      toast(data.message || 'Stamp added!', 'success');
+      toast(data.message || '¡Sello agregado!', 'success');
 
       // Optimistically update local data
       const c = allCustomers.find(x => x.id === customerId);
@@ -671,14 +671,14 @@
       toast('Error: ' + err.message, 'error');
     } finally {
       btn.disabled = false;
-      btn.textContent = '+ Stamp';
+      btn.textContent = '+ Sello';
     }
   }
 
   // ── Delete customer ─────────────────────────────────────────────────────────
 
   async function removeCustomer(customerId, name, btn) {
-    if (!confirm(`Delete ${name}'s loyalty card? This cannot be undone.`)) return;
+    if (!confirm(`¿Eliminar la tarjeta de lealtad de ${name}? Esto no se puede deshacer.`)) return;
 
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>';
@@ -686,16 +686,16 @@
     try {
       const resp = await apiFetch(`/admin/customer/${customerId}`, { method: 'DELETE' });
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Failed');
+      if (!resp.ok) throw new Error(data.error || 'Error al eliminar');
 
-      toast(`${name} deleted`, 'success');
+      toast(`${name} eliminado`, 'success');
       allCustomers = allCustomers.filter(c => c.id !== customerId);
       filterCustomers();
       updateStats();
     } catch (err) {
       toast('Error: ' + err.message, 'error');
       btn.disabled = false;
-      btn.textContent = 'Delete';
+      btn.textContent = 'Eliminar';
     }
   }
 
@@ -703,11 +703,11 @@
 
   async function sendNotification() {
     const msg = document.getElementById('notifyMsg').value.trim();
-    if (!msg) { toast('Enter a message first', 'error'); return; }
+    if (!msg) { toast('Ingresa un mensaje primero', 'error'); return; }
 
     const btn = document.getElementById('notifyBtn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Sending…';
+    btn.innerHTML = '<span class="spinner"></span> Enviando…';
 
     try {
       const resp = await apiFetch('/admin/notify', {
@@ -715,14 +715,14 @@
         body: JSON.stringify({ message: msg }),
       });
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Failed');
-      toast(`Sent to ${data.sent} device${data.sent !== 1 ? 's' : ''}`, 'success');
+      if (!resp.ok) throw new Error(data.error || 'Error al enviar');
+      toast(`Enviado a ${data.sent} dispositivo${data.sent !== 1 ? 's' : ''}`, 'success');
       document.getElementById('notifyMsg').value = '';
     } catch (err) {
       toast('Error: ' + err.message, 'error');
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Send to All Devices';
+      btn.textContent = 'Enviar a Todos los Dispositivos';
     }
   }
 

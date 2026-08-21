@@ -41,7 +41,7 @@ function adminAuth(req, res, next) {
     return next(); // Dashboard HTML handles its own auth via JS
   }
 
-  return res.status(401).json({ error: 'Unauthorized' });
+  return res.status(401).json({ error: 'No autorizado' });
 }
 
 // ── GET /admin ─────────────────────────────────────────────────────────────────
@@ -95,10 +95,10 @@ router.post('/admin/settings', adminAuth, async (req, res) => {
     const rewardText     = (req.body.rewardText || '').trim();
 
     if (!Number.isInteger(stampsRequired) || stampsRequired < 1) {
-      return res.status(400).json({ error: 'stampsRequired must be a positive whole number.' });
+      return res.status(400).json({ error: 'El número de sellos debe ser un número entero positivo.' });
     }
     if (!rewardText) {
-      return res.status(400).json({ error: 'rewardText is required.' });
+      return res.status(400).json({ error: 'La recompensa es requerida.' });
     }
 
     await setSetting('default_stamps_required', String(stampsRequired));
@@ -117,7 +117,7 @@ router.delete('/admin/customer/:customerId', adminAuth, async (req, res) => {
   try {
     const deleted = await deleteCustomer(req.params.customerId);
     if (!deleted) {
-      return res.status(404).json({ error: 'Customer not found' });
+      return res.status(404).json({ error: 'Cliente no encontrado' });
     }
     return res.json({ success: true });
   } catch (err) {
@@ -196,7 +196,7 @@ router.post('/admin/stamp/:customerId', adminAuth, async (req, res) => {
 
     const customer = await getCustomerById(customerId);
     if (!customer) {
-      return res.status(404).json({ error: 'Customer not found' });
+      return res.status(404).json({ error: 'Cliente no encontrado' });
     }
 
     const updated = await addStamp(customerId);
@@ -209,10 +209,14 @@ router.post('/admin/stamp/:customerId', adminAuth, async (req, res) => {
       console.log(`[ADMIN] Sent pass-update push for serial ${updated.serial_number} to ${tokens.length} device(s)`);
     }
 
+    const required = updated.stamps_required;
+    const cycle    = updated.stamps % required;
+    const display  = cycle === 0 && updated.stamps > 0 ? required : cycle;
+
     return res.json({
       success: true,
       stamps:  updated.stamps,
-      message: `Stamp added. ${updated.name} now has ${updated.stamps}/10 stamps.`,
+      message: `Sello agregado. ${updated.name} ahora tiene ${display}/${required} sellos.`,
     });
   } catch (err) {
     console.error('[ADMIN] Error adding stamp:', err);
@@ -227,12 +231,12 @@ router.post('/admin/notify', adminAuth, async (req, res) => {
   try {
     const message = (req.body.message || '').trim();
     if (!message) {
-      return res.status(400).json({ error: 'message is required' });
+      return res.status(400).json({ error: 'El mensaje es requerido' });
     }
 
     const serials = await getRegisteredSerials();
     if (serials.length === 0) {
-      return res.json({ success: true, sent: 0, message: 'No registered devices.' });
+      return res.json({ success: true, sent: 0, message: 'No hay dispositivos registrados.' });
     }
 
     // Store the message so generatePass() can stamp it onto the "announcement"
