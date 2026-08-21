@@ -74,6 +74,7 @@ router.get('/admin/customers', adminAuth, async (_req, res) => {
       rewardTextPt:   c.reward_text_pt,
       serialNumber:   c.serial_number,
       cardRemovedAt:  c.card_removed_at,
+      rewardsRedeemed: Number(c.reward_count),
       createdAt:      c.created_at,
       updatedAt:      c.updated_at,
     }));

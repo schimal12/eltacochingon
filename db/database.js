@@ -143,9 +143,20 @@ async function getCustomerById(id) {
 }
 
 async function getAllCustomers() {
-  const { rows } = await getPool().query(
-    'SELECT * FROM customers WHERE deleted_at IS NULL ORDER BY created_at DESC',
-  );
+  // Lifetime reward count per customer, for spotting best customers at a
+  // glance -- survives card removal/re-registration since it's keyed off
+  // customer_id, not the pass/device.
+  const { rows } = await getPool().query(`
+    SELECT c.*, COALESCE(r.reward_count, 0) AS reward_count
+    FROM customers c
+    LEFT JOIN (
+      SELECT customer_id, COUNT(*) AS reward_count
+      FROM reward_redemptions
+      GROUP BY customer_id
+    ) r ON r.customer_id = c.id
+    WHERE c.deleted_at IS NULL
+    ORDER BY c.created_at DESC
+  `);
   return rows;
 }
 

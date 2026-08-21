@@ -408,13 +408,14 @@
             <tr>
               <th>Cliente</th>
               <th>Sellos</th>
+              <th>🎁 Recompensas</th>
               <th>Promoción</th>
               <th>Registro</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="customerTable">
-            <tr><td colspan="5" class="empty-state">Cargando…</td></tr>
+            <tr><td colspan="6" class="empty-state">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -429,6 +430,7 @@
               <tr>
                 <th>Cliente</th>
                 <th>Sellos</th>
+                <th>🎁 Recompensas</th>
                 <th>Promoción</th>
                 <th>Registro</th>
                 <th></th>
@@ -797,6 +799,7 @@
             <span class="stamp-count">${displayCount}/${required}</span>
           </div>
         </td>
+        <td data-label="Recompensas" style="font-weight:700;">${c.rewardsRedeemed || 0}</td>
         <td data-label="Promoción" style="color:var(--muted);font-size:12px;">${required} → ${escHtml(c.rewardTextEs || 'un taco gratis')}</td>
         <td data-label="Registro" style="color:var(--muted)">${date}</td>
         <td>
@@ -816,7 +819,7 @@
 
     const tbody = document.getElementById('customerTable');
     tbody.innerHTML = active.length === 0
-      ? '<tr><td colspan="5" class="empty-state">Aún no hay clientes. ¡Comparte el enlace de registro!</td></tr>'
+      ? '<tr><td colspan="6" class="empty-state">Aún no hay clientes. ¡Comparte el enlace de registro!</td></tr>'
       : active.map((c) => buildCustomerRow(c, { cardRemovedSection: false })).join('');
 
     const section = document.getElementById('cardRemovedSection');
