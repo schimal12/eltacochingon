@@ -317,11 +317,15 @@ async function savePromotionDefaults(stampsRequired, rewardText) {
   await setSetting('default_stamps_required', String(stampsRequired));
   await setSetting('default_reward_text', rewardText);
 
+  // If this exact promotion already exists anywhere in the history (not just
+  // the most recent entry -- covers reusing an older one), bump it to the
+  // top instead of inserting a duplicate row.
   const { rows } = await db.query(
-    'SELECT stamps_required, reward_text FROM promotion_history ORDER BY created_at DESC LIMIT 1',
+    'SELECT id FROM promotion_history WHERE stamps_required = $1 AND reward_text = $2',
+    [stampsRequired, rewardText],
   );
-  const last = rows[0];
-  if (last && last.stamps_required === stampsRequired && last.reward_text === rewardText) {
+  if (rows.length > 0) {
+    await db.query('UPDATE promotion_history SET created_at = NOW() WHERE id = $1', [rows[0].id]);
     return;
   }
 
