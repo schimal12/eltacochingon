@@ -101,13 +101,28 @@ function isRewardReady(customer) {
 }
 
 /**
+ * The reward description in the customer's own pass language -- each is a
+ * separate owner-entered field (see admin.html's Promotion panel), not a
+ * machine translation of a single string.
+ */
+function rewardTextFor(customer) {
+  const byLang = {
+    en: customer.reward_text_en,
+    es: customer.reward_text_es,
+    pt: customer.reward_text_pt,
+  };
+  return byLang[customer.lang] || customer.reward_text_en || customer.reward_text_es;
+}
+
+/**
  * Compute a human-friendly "next reward" string from the current progress.
  */
 function nextRewardText(customer, t) {
   const progress = progressFor(customer);
-  if (progress >= customer.stamps_required) return t.rewardReady(customer.reward_text);
+  const reward = rewardTextFor(customer);
+  if (progress >= customer.stamps_required) return t.rewardReady(reward);
   const remaining = customer.stamps_required - progress;
-  return t.rewardRemaining(remaining, customer.reward_text);
+  return t.rewardRemaining(remaining, reward);
 }
 
 /**
@@ -179,7 +194,7 @@ async function generatePass(customer) {
   const stampsField = pass.secondaryFields.find((f) => f.key === 'stamps');
   if (stampsField) {
     stampsField.label = ready ? '' : t.stampsLabel;
-    stampsField.value = ready ? `🌮 ${t.rewardReady(customer.reward_text)}` : stampVisual(customer);
+    stampsField.value = ready ? `🌮 ${t.rewardReady(rewardTextFor(customer))}` : stampVisual(customer);
   }
 
   // auxiliaryFields[0] → next reward message

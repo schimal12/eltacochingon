@@ -24,7 +24,9 @@ async function initDatabase() {
       stamps_redeemed INTEGER NOT NULL DEFAULT 0,
       lang            TEXT NOT NULL DEFAULT 'en',
       stamps_required INTEGER NOT NULL DEFAULT 10,
-      reward_text     TEXT NOT NULL DEFAULT 'a free taco',
+      reward_text_en  TEXT NOT NULL DEFAULT 'a free taco',
+      reward_text_es  TEXT NOT NULL DEFAULT 'un taco gratis',
+      reward_text_pt  TEXT NOT NULL DEFAULT 'um taco grátis',
       deleted_at      TIMESTAMPTZ,
       card_removed_at TIMESTAMPTZ,
       created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -48,7 +50,9 @@ async function initDatabase() {
     CREATE TABLE IF NOT EXISTS promotion_history (
       id              INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
       stamps_required INTEGER NOT NULL,
-      reward_text     TEXT NOT NULL,
+      reward_text_en  TEXT NOT NULL,
+      reward_text_es  TEXT NOT NULL,
+      reward_text_pt  TEXT NOT NULL,
       created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
@@ -62,10 +66,18 @@ async function initDatabase() {
     );
 
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS stamps_required INTEGER NOT NULL DEFAULT 10;
-    ALTER TABLE customers ADD COLUMN IF NOT EXISTS reward_text TEXT NOT NULL DEFAULT 'a free taco';
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS card_removed_at TIMESTAMPTZ;
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS stamps_redeemed INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS reward_text_en TEXT NOT NULL DEFAULT 'a free taco';
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS reward_text_es TEXT NOT NULL DEFAULT 'un taco gratis';
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS reward_text_pt TEXT NOT NULL DEFAULT 'um taco grátis';
+    ALTER TABLE customers DROP COLUMN IF EXISTS reward_text;
+
+    ALTER TABLE promotion_history ADD COLUMN IF NOT EXISTS reward_text_en TEXT NOT NULL DEFAULT 'a free taco';
+    ALTER TABLE promotion_history ADD COLUMN IF NOT EXISTS reward_text_es TEXT NOT NULL DEFAULT 'un taco gratis';
+    ALTER TABLE promotion_history ADD COLUMN IF NOT EXISTS reward_text_pt TEXT NOT NULL DEFAULT 'um taco grátis';
+    ALTER TABLE promotion_history DROP COLUMN IF EXISTS reward_text;
 
     -- Soft-deleted customers may share an email with a new active signup, so
     -- email uniqueness is only enforced among non-deleted rows.
@@ -91,11 +103,18 @@ function getPool() {
 
 const SUPPORTED_LANGS = ['en', 'es', 'pt'];
 
-async function createCustomer({ id, name, email, serialNumber, authToken, lang, stampsRequired, rewardText }) {
+async function createCustomer({
+  id, name, email, serialNumber, authToken, lang, stampsRequired,
+  rewardTextEn, rewardTextEs, rewardTextPt,
+}) {
   await getPool().query(
-    `INSERT INTO customers (id, name, email, serial_number, auth_token, lang, stamps_required, reward_text)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [id, name, email, serialNumber, authToken, SUPPORTED_LANGS.includes(lang) ? lang : 'en', stampsRequired, rewardText],
+    `INSERT INTO customers (id, name, email, serial_number, auth_token, lang, stamps_required, reward_text_en, reward_text_es, reward_text_pt)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [
+      id, name, email, serialNumber, authToken,
+      SUPPORTED_LANGS.includes(lang) ? lang : 'en',
+      stampsRequired, rewardTextEn, rewardTextEs, rewardTextPt,
+    ],
   );
 }
 
@@ -234,10 +253,13 @@ async function redeemReward(customerId) {
     [customerId],
   );
 
+  // The redemption log is an internal admin audit trail (admin UI is
+  // Spanish-only), so a single language is enough here even though
+  // customers themselves see the reward in their own pass language.
   await db.query(
     `INSERT INTO reward_redemptions (customer_id, customer_name, stamps_required, reward_text)
      VALUES ($1, $2, $3, $4)`,
-    [customer.id, customer.name, customer.stamps_required, customer.reward_text],
+    [customer.id, customer.name, customer.stamps_required, customer.reward_text_es],
   );
 
   const { rows } = await db.query('SELECT * FROM customers WHERE id = $1', [customerId]);
@@ -296,33 +318,37 @@ async function setSetting(key, value) {
  * whatever was active when they signed up.
  */
 async function getPromotionDefaults() {
-  const [stampsRequired, rewardText] = await Promise.all([
+  const [stampsRequired, rewardTextEn, rewardTextEs, rewardTextPt] = await Promise.all([
     getSetting('default_stamps_required'),
-    getSetting('default_reward_text'),
+    getSetting('default_reward_text_en'),
+    getSetting('default_reward_text_es'),
+    getSetting('default_reward_text_pt'),
   ]);
   return {
     stampsRequired: stampsRequired ? parseInt(stampsRequired, 10) : 10,
-    rewardText: rewardText || 'a free taco',
+    rewardTextEn: rewardTextEn || 'a free taco',
+    rewardTextEs: rewardTextEs || 'un taco gratis',
+    rewardTextPt: rewardTextPt || 'um taco grátis',
   };
 }
 
 /**
  * Set the current promotion defaults and record them in the history log
- * (skipping the insert if it's identical to the most recent entry, so
- * re-saving the same values repeatedly doesn't spam the log).
+ * (skipping the insert if it's identical to an existing entry, so re-saving
+ * or reusing the same promotion doesn't spam the log with duplicates).
  */
-async function savePromotionDefaults(stampsRequired, rewardText) {
+async function savePromotionDefaults(stampsRequired, rewardTextEn, rewardTextEs, rewardTextPt) {
   const db = getPool();
 
   await setSetting('default_stamps_required', String(stampsRequired));
-  await setSetting('default_reward_text', rewardText);
+  await setSetting('default_reward_text_en', rewardTextEn);
+  await setSetting('default_reward_text_es', rewardTextEs);
+  await setSetting('default_reward_text_pt', rewardTextPt);
 
-  // If this exact promotion already exists anywhere in the history (not just
-  // the most recent entry -- covers reusing an older one), bump it to the
-  // top instead of inserting a duplicate row.
   const { rows } = await db.query(
-    'SELECT id FROM promotion_history WHERE stamps_required = $1 AND reward_text = $2',
-    [stampsRequired, rewardText],
+    `SELECT id FROM promotion_history
+     WHERE stamps_required = $1 AND reward_text_en = $2 AND reward_text_es = $3 AND reward_text_pt = $4`,
+    [stampsRequired, rewardTextEn, rewardTextEs, rewardTextPt],
   );
   if (rows.length > 0) {
     await db.query('UPDATE promotion_history SET created_at = NOW() WHERE id = $1', [rows[0].id]);
@@ -330,8 +356,9 @@ async function savePromotionDefaults(stampsRequired, rewardText) {
   }
 
   await db.query(
-    'INSERT INTO promotion_history (stamps_required, reward_text) VALUES ($1, $2)',
-    [stampsRequired, rewardText],
+    `INSERT INTO promotion_history (stamps_required, reward_text_en, reward_text_es, reward_text_pt)
+     VALUES ($1, $2, $3, $4)`,
+    [stampsRequired, rewardTextEn, rewardTextEs, rewardTextPt],
   );
 }
 

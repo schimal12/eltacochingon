@@ -129,9 +129,12 @@ router.post('/register', async (req, res) => {
       const id           = uuidv4();
       const serialNumber = uuidv4();
       const authToken    = uuidv4().replace(/-/g, ''); // 32-char hex token
-      const { stampsRequired, rewardText } = await getPromotionDefaults();
+      const { stampsRequired, rewardTextEn, rewardTextEs, rewardTextPt } = await getPromotionDefaults();
 
-      await createCustomer({ id, name, email, serialNumber, authToken, lang, stampsRequired, rewardText });
+      await createCustomer({
+        id, name, email, serialNumber, authToken, lang, stampsRequired,
+        rewardTextEn, rewardTextEs, rewardTextPt,
+      });
       customer = await getCustomerByEmail(email);
     }
 

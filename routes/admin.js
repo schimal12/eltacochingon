@@ -69,7 +69,9 @@ router.get('/admin/customers', adminAuth, async (_req, res) => {
       stamps:         c.stamps,
       stampsRedeemed: c.stamps_redeemed,
       stampsRequired: c.stamps_required,
-      rewardText:     c.reward_text,
+      rewardTextEn:   c.reward_text_en,
+      rewardTextEs:   c.reward_text_es,
+      rewardTextPt:   c.reward_text_pt,
       serialNumber:   c.serial_number,
       cardRemovedAt:  c.card_removed_at,
       createdAt:      c.created_at,
@@ -97,23 +99,25 @@ router.get('/admin/settings', adminAuth, async (_req, res) => {
 });
 
 // ── POST /admin/settings ────────────────────────────────────────────────────────
-// Body: { "stampsRequired": 10, "rewardText": "a free taco" }
+// Body: { "stampsRequired": 10, "rewardTextEn": "...", "rewardTextEs": "...", "rewardTextPt": "..." }
 
 router.post('/admin/settings', adminAuth, async (req, res) => {
   try {
     const stampsRequired = parseInt(req.body.stampsRequired, 10);
-    const rewardText     = (req.body.rewardText || '').trim();
+    const rewardTextEn   = (req.body.rewardTextEn || '').trim();
+    const rewardTextEs   = (req.body.rewardTextEs || '').trim();
+    const rewardTextPt   = (req.body.rewardTextPt || '').trim();
 
     if (!Number.isInteger(stampsRequired) || stampsRequired < 1) {
       return res.status(400).json({ error: 'El número de sellos debe ser un número entero positivo.' });
     }
-    if (!rewardText) {
-      return res.status(400).json({ error: 'La recompensa es requerida.' });
+    if (!rewardTextEn || !rewardTextEs || !rewardTextPt) {
+      return res.status(400).json({ error: 'La recompensa es requerida en los tres idiomas (inglés, español y portugués).' });
     }
 
-    await savePromotionDefaults(stampsRequired, rewardText);
+    await savePromotionDefaults(stampsRequired, rewardTextEn, rewardTextEs, rewardTextPt);
 
-    return res.json({ success: true, stampsRequired, rewardText });
+    return res.json({ success: true, stampsRequired, rewardTextEn, rewardTextEs, rewardTextPt });
   } catch (err) {
     console.error('[ADMIN] Error saving settings:', err);
     return res.status(500).json({ error: err.message });
@@ -129,7 +133,9 @@ router.get('/admin/promotion-history', adminAuth, async (_req, res) => {
     const history = rawHistory.map((h) => ({
       id:             h.id,
       stampsRequired: h.stamps_required,
-      rewardText:     h.reward_text,
+      rewardTextEn:   h.reward_text_en,
+      rewardTextEs:   h.reward_text_es,
+      rewardTextPt:   h.reward_text_pt,
       createdAt:      h.created_at,
     }));
     return res.json({ history });

@@ -450,9 +450,20 @@
               <input type="text" inputmode="numeric" id="stampsRequiredInput" placeholder="10">
             </div>
             <div class="form-group" style="margin-bottom:0;">
-              <label for="rewardTextInput">Recompensa</label>
-              <input type="text" id="rewardTextInput" placeholder="un taco gratis">
+              <label for="rewardTextEsInput">Recompensa (Español)</label>
+              <input type="text" id="rewardTextEsInput" placeholder="un taco gratis">
             </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label for="rewardTextEnInput">Recompensa (Inglés)</label>
+              <input type="text" id="rewardTextEnInput" placeholder="a free taco">
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label for="rewardTextPtInput">Recompensa (Portugués)</label>
+              <input type="text" id="rewardTextPtInput" placeholder="um taco grátis">
+            </div>
+            <p style="color:var(--muted);font-size:11px;margin:0;">
+              Cada cliente ve la recompensa en el idioma que eligió al registrarse — hay que escribir las tres versiones.
+            </p>
             <button class="btn btn-primary" id="settingsBtn" onclick="saveSettings()">Guardar Promoción</button>
           </div>
           <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
@@ -602,7 +613,9 @@
       if (!resp.ok) throw new Error('Error del servidor');
       const data = await resp.json();
       document.getElementById('stampsRequiredInput').value = data.stampsRequired;
-      document.getElementById('rewardTextInput').value = data.rewardText;
+      document.getElementById('rewardTextEsInput').value = data.rewardTextEs;
+      document.getElementById('rewardTextEnInput').value = data.rewardTextEn;
+      document.getElementById('rewardTextPtInput').value = data.rewardTextPt;
       settingsLoaded = true;
     } catch (err) {
       toast('Error al cargar la promoción: ' + err.message, 'error');
@@ -611,12 +624,16 @@
 
   async function saveSettings() {
     const stampsRequired = parseInt(document.getElementById('stampsRequiredInput').value, 10);
-    const rewardText = document.getElementById('rewardTextInput').value.trim();
+    const rewardTextEs = document.getElementById('rewardTextEsInput').value.trim();
+    const rewardTextEn = document.getElementById('rewardTextEnInput').value.trim();
+    const rewardTextPt = document.getElementById('rewardTextPtInput').value.trim();
 
     if (!Number.isInteger(stampsRequired) || stampsRequired < 1) {
       return toast('Ingresa un número de sellos válido', 'error');
     }
-    if (!rewardText) return toast('Ingresa una descripción de la recompensa', 'error');
+    if (!rewardTextEs || !rewardTextEn || !rewardTextPt) {
+      return toast('Completa la recompensa en los tres idiomas', 'error');
+    }
 
     const btn = document.getElementById('settingsBtn');
     btn.disabled = true;
@@ -625,7 +642,7 @@
     try {
       const resp = await apiFetch('/admin/settings', {
         method: 'POST',
-        body: JSON.stringify({ stampsRequired, rewardText }),
+        body: JSON.stringify({ stampsRequired, rewardTextEs, rewardTextEn, rewardTextPt }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Error al guardar');
@@ -641,12 +658,15 @@
 
   // ── Promotion history ─────────────────────────────────────────────────────────
 
+  let promoHistory = [];
+
   async function loadPromotionHistory() {
     try {
       const resp = await apiFetch('/admin/promotion-history');
       if (!resp.ok) throw new Error('Error del servidor');
       const data = await resp.json();
-      renderPromotionHistory(data.history || []);
+      promoHistory = data.history || [];
+      renderPromotionHistory(promoHistory);
     } catch (err) {
       console.error('Failed to load promotion history:', err);
     }
@@ -661,23 +681,26 @@
 
     el.innerHTML = history.map((h) => {
       const date = new Date(h.createdAt).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' });
-      const rewardEscaped = escHtml(h.rewardText).replace(/'/g, "\\'");
       return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">
         <div style="font-size:12px;">
-          <strong>${h.stampsRequired} → ${escHtml(h.rewardText)}</strong>
-          <span style="color:var(--muted);display:block;font-size:11px;">${date}</span>
+          <strong>${h.stampsRequired} → ${escHtml(h.rewardTextEs)}</strong>
+          <span style="color:var(--muted);display:block;font-size:11px;">${escHtml(h.rewardTextEn)} · ${escHtml(h.rewardTextPt)} · ${date}</span>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;">
-          <button class="btn btn-secondary btn-sm" onclick="reusePromotion(${h.stampsRequired}, '${rewardEscaped}')">Reutilizar</button>
+          <button class="btn btn-secondary btn-sm" onclick="reusePromotion(${h.id})">Reutilizar</button>
           <button class="btn btn-danger btn-sm" onclick="deletePromotionHistoryEntry(${h.id}, this)">🗑</button>
         </div>
       </div>`;
     }).join('');
   }
 
-  function reusePromotion(stampsRequired, rewardText) {
-    document.getElementById('stampsRequiredInput').value = stampsRequired;
-    document.getElementById('rewardTextInput').value = rewardText;
+  function reusePromotion(id) {
+    const h = promoHistory.find((x) => x.id === id);
+    if (!h) return;
+    document.getElementById('stampsRequiredInput').value = h.stampsRequired;
+    document.getElementById('rewardTextEsInput').value = h.rewardTextEs;
+    document.getElementById('rewardTextEnInput').value = h.rewardTextEn;
+    document.getElementById('rewardTextPtInput').value = h.rewardTextPt;
     saveSettings();
   }
 
@@ -757,7 +780,7 @@
             <span class="stamp-count">${displayCount}/${required}</span>
           </div>
         </td>
-        <td data-label="Promoción" style="color:var(--muted);font-size:12px;">${required} → ${escHtml(c.rewardText || 'un taco gratis')}</td>
+        <td data-label="Promoción" style="color:var(--muted);font-size:12px;">${required} → ${escHtml(c.rewardTextEs || 'un taco gratis')}</td>
         <td data-label="Registro" style="color:var(--muted)">${date}</td>
         <td>
           <div class="row-actions">
