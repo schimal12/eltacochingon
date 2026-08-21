@@ -455,6 +455,12 @@
             </div>
             <button class="btn btn-primary" id="settingsBtn" onclick="saveSettings()">Guardar Promoción</button>
           </div>
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+            <label style="margin-bottom:8px;">Historial de Promociones</label>
+            <div id="promoHistoryList">
+              <p style="color:var(--muted);font-size:12px;">Cargando…</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -578,6 +584,7 @@
       startAutoRefresh();
       if (!settingsLoaded) loadSettings();
       loadDeletedCustomers();
+      loadPromotionHistory();
     } catch (err) {
       toast('Error al cargar clientes: ' + err.message, 'error');
     }
@@ -621,12 +628,51 @@
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || 'Error al guardar');
       toast('Promoción guardada — aplica a los nuevos registros', 'success');
+      loadPromotionHistory();
     } catch (err) {
       toast('Error: ' + err.message, 'error');
     } finally {
       btn.disabled = false;
       btn.textContent = 'Guardar Promoción';
     }
+  }
+
+  // ── Promotion history ─────────────────────────────────────────────────────────
+
+  async function loadPromotionHistory() {
+    try {
+      const resp = await apiFetch('/admin/promotion-history');
+      if (!resp.ok) throw new Error('Error del servidor');
+      const data = await resp.json();
+      renderPromotionHistory(data.history || []);
+    } catch (err) {
+      console.error('Failed to load promotion history:', err);
+    }
+  }
+
+  function renderPromotionHistory(history) {
+    const el = document.getElementById('promoHistoryList');
+    if (history.length === 0) {
+      el.innerHTML = '<p style="color:var(--muted);font-size:12px;">Aún no hay historial.</p>';
+      return;
+    }
+
+    el.innerHTML = history.map((h) => {
+      const date = new Date(h.createdAt).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' });
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:12px;">
+          <strong>${h.stampsRequired} → ${escHtml(h.rewardText)}</strong>
+          <span style="color:var(--muted);display:block;font-size:11px;">${date}</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="reusePromotion(${h.stampsRequired}, '${escHtml(h.rewardText).replace(/'/g, "\\'")}')">Reutilizar</button>
+      </div>`;
+    }).join('');
+  }
+
+  function reusePromotion(stampsRequired, rewardText) {
+    document.getElementById('stampsRequiredInput').value = stampsRequired;
+    document.getElementById('rewardTextInput').value = rewardText;
+    saveSettings();
   }
 
   function apiFetch(url, opts = {}) {

@@ -44,6 +44,13 @@ async function initDatabase() {
       value TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS promotion_history (
+      id              INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      stamps_required INTEGER NOT NULL,
+      reward_text     TEXT NOT NULL,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS stamps_required INTEGER NOT NULL DEFAULT 10;
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS reward_text TEXT NOT NULL DEFAULT 'a free taco';
     ALTER TABLE customers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
@@ -237,6 +244,43 @@ async function getPromotionDefaults() {
 }
 
 /**
+ * Set the current promotion defaults and record them in the history log
+ * (skipping the insert if it's identical to the most recent entry, so
+ * re-saving the same values repeatedly doesn't spam the log).
+ */
+async function savePromotionDefaults(stampsRequired, rewardText) {
+  const db = getPool();
+
+  await setSetting('default_stamps_required', String(stampsRequired));
+  await setSetting('default_reward_text', rewardText);
+
+  const { rows } = await db.query(
+    'SELECT stamps_required, reward_text FROM promotion_history ORDER BY created_at DESC LIMIT 1',
+  );
+  const last = rows[0];
+  if (last && last.stamps_required === stampsRequired && last.reward_text === rewardText) {
+    return;
+  }
+
+  await db.query(
+    'INSERT INTO promotion_history (stamps_required, reward_text) VALUES ($1, $2)',
+    [stampsRequired, rewardText],
+  );
+}
+
+/**
+ * Past promotions, most recent first, so the owner can see what's been run
+ * before and reuse one.
+ */
+async function getPromotionHistory(limit = 20) {
+  const { rows } = await getPool().query(
+    'SELECT * FROM promotion_history ORDER BY created_at DESC LIMIT $1',
+    [limit],
+  );
+  return rows;
+}
+
+/**
  * Bump updated_at for the given serial numbers so the next pass fetch isn't
  * short-circuited by the If-Modified-Since check in the wallet web service.
  */
@@ -351,6 +395,8 @@ module.exports = {
   getSetting,
   setSetting,
   getPromotionDefaults,
+  savePromotionDefaults,
+  getPromotionHistory,
   touchCustomers,
   // customers
   createCustomer,

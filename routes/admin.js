@@ -18,6 +18,8 @@ const {
   getAllDevicesWithCustomer,
   setSetting,
   getPromotionDefaults,
+  savePromotionDefaults,
+  getPromotionHistory,
   touchCustomers,
 } = require('../db/database');
 const { sendPassUpdatePush } = require('../passes/apnSender');
@@ -104,12 +106,29 @@ router.post('/admin/settings', adminAuth, async (req, res) => {
       return res.status(400).json({ error: 'La recompensa es requerida.' });
     }
 
-    await setSetting('default_stamps_required', String(stampsRequired));
-    await setSetting('default_reward_text', rewardText);
+    await savePromotionDefaults(stampsRequired, rewardText);
 
     return res.json({ success: true, stampsRequired, rewardText });
   } catch (err) {
     console.error('[ADMIN] Error saving settings:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /admin/promotion-history ─────────────────────────────────────────────────
+// Past promotions, most recent first, so the owner can reuse one.
+
+router.get('/admin/promotion-history', adminAuth, async (_req, res) => {
+  try {
+    const rawHistory = await getPromotionHistory();
+    const history = rawHistory.map((h) => ({
+      stampsRequired: h.stamps_required,
+      rewardText:     h.reward_text,
+      createdAt:      h.created_at,
+    }));
+    return res.json({ history });
+  } catch (err) {
+    console.error('[ADMIN] Error reading promotion history:', err);
     return res.status(500).json({ error: err.message });
   }
 });
